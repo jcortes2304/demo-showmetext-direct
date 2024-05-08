@@ -27,13 +27,13 @@ export default function HomePage() {
 
     const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
     const [isPlayingSubTitle, setIsPlayingSubTitle] = useState<boolean>(false);
-    const [subtitles, setSubtitles] = useState<string>("");
+    const [subtitles, setSubtitles] = useState("");
+    const [subtitlesToSend, setSubtitlesToSend] = useState("");
     const [clientAudio, setClientAudio] = useState<Client | null>(null);
+    const [subtitlesClient, setSubtitlesClient] = useState<Client | null>(null);
     const [subscriptionSubtitle, setSubscriptionSubtitle] = useState<StompSubscription | null>(null);
     const [subscriptionAudio, setSubscriptionAudio] = useState<StompSubscription | null>(null);
     const [flushingTime, setFlushingTime] = useState<number>(0);
-
-    const [sendSubtitles, setSendSubtitles] = useState<string>("");
 
     const player = new PCMPlayer({
         inputCodec: 'Int16',
@@ -42,26 +42,20 @@ export default function HomePage() {
         flushTime: flushingTime,
     });
 
-    const updateSubtitlesText = (newText: string) => {
-        setSubtitles(prevText => prevText + " " + newText);
-    };
-
     const updateSendSubtitles = (newText: string) => {
-        const words = newText.trim().split(/\s+/);
-        const wordsToSend = words.slice(0, AMOUNT_OF_WORDS_TO_SEND).join(" ");
-        setSendSubtitles(prev => prev + " " + wordsToSend);
+        let words = newText.trim().split(/\s+/);
+        let wordsToSend = words.slice(0, AMOUNT_OF_WORDS_TO_SEND).join(" ") + " ";
+        let remainingWords = words.slice(AMOUNT_OF_WORDS_TO_SEND).join(" ");
+        setSubtitles(remainingWords);
+        setSubtitlesToSend(prev => prev + " " + wordsToSend);
     };
 
 
     useEffect(() => {
-        // const intervalId = setInterval(() => {
-            let words = subtitles.trim().split(/\s+/);
-            let wordsToSend = words.slice(0, AMOUNT_OF_WORDS_TO_SEND).join(" ");
-
-            console.log(wordsToSend)
-        // }, 3000);
-        //
-        // return () => clearInterval(intervalId);
+        const intervalId = setInterval(() => {
+            updateSendSubtitles(subtitles)
+        }, INTERVAL_TO_TIME_BETWEEN_SENDS * 1000);
+        return () => clearInterval(intervalId);
     }, [subtitles]);
 
     const togglePlayAudio = () => {
@@ -78,35 +72,38 @@ export default function HomePage() {
     };
 
 
-    useEffect(() => {
-        const subtitlesClient = new Client({
-            brokerURL: SUBTITLES_URL,
-            reconnectDelay: 5000,
-            heartbeatIncoming: 4000,
-            heartbeatOutgoing: 4000,
-        });
 
-        subtitlesClient.onConnect = () => {
-            const newSubscription = subtitlesClient.subscribe(`${BASE_TOPIC}/subtitles/0`, (message) => {
+    useEffect(() => {
+            const newClient = new Client({
+                brokerURL: SUBTITLES_URL,
+                reconnectDelay: 5000,
+                heartbeatIncoming: 4000,
+                heartbeatOutgoing: 4000,
+            });
+
+        newClient.onConnect = () => {
+            const newSubscription = newClient.subscribe(`${BASE_TOPIC}/subtitles/0`, (message) => {
                 const subtitleMessage: SubtitleMessage = JSON.parse(message.body);
                 if (subtitleMessage) {
-                    const subtitlesMessage = subtitleMessage.subtitles;
-                    const text = subtitlesMessage.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
-                    updateSubtitlesText(text);
+                    const subtitlesArray = subtitleMessage.subtitles;
+                    const text = subtitlesArray.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
+                    setSubtitles(prev => prev + "\n" + text);
                 }
             });
             setSubscriptionSubtitle(newSubscription);
-            setIsPlayingSubTitle(true)
+
+            return () => {
+                newSubscription.unsubscribe();
+                newClient.deactivate();
+            };
         };
 
-        subtitlesClient.onStompError = () => {
-            setIsPlayingSubTitle(false)
-            console.log("Error playing subtitles")
-        }
+        newClient.activate();
+        return () => {
+            newClient.deactivate();
+        };
 
-        subtitlesClient.activate();
-
-    }, [setIsPlayingSubTitle, isPlayingSubTitle, SUBTITLES_URL]);
+    }, []);
 
 
     useEffect(() => {
@@ -265,15 +262,14 @@ export default function HomePage() {
                                 <label className="label text-sm">Detener envio automatico</label>
                             </div>
                         </div>
-
                     </div>
                 </div>
 
                 <div
                     className="w-full border border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[200px] relative">
                     <div className="p-4 space-y-4">
-                        <span className="bg-blue-400 text-white">{sendSubtitles}</span>
-                        <span className="text-white">{subtitles}</span>
+                        <span className="bg-blue-400 text-white">{subtitlesToSend}</span>
+                        <span className="">{subtitles}</span>
                     </div>
                 </div>
             </div>
