@@ -4,7 +4,7 @@ import {
     InformationCircleIcon,
     WifiIcon,
 } from "@heroicons/react/24/outline";
-import React, {useEffect, useRef, useState} from "react";
+import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
 import {Client} from '@stomp/stompjs';
 import {SubtitleMessage} from "@/schemas/SubtitleMessageSchema";
 import {useTranslations} from 'next-intl';
@@ -19,20 +19,48 @@ export default function HomePage() {
     const BASE_TOPIC = "/topic/providers/RTVE/channels/Teledeporte";
 
     const [isPlayingSubTitle, setIsPlayingSubTitle] = useState<boolean>(false);
+    const [subtitlesHaveWords, setSubtitlesHaveWords] = useState<boolean>(false);
+    const [shouldMark, setShouldMark] = useState<boolean>(false);
+    const [isEditing, setIsEditing] = useState<boolean>(false);
+    const [cursorWasClicked, setCursorWasClicked] = useState<boolean>(false);
+    const [editPause, setEditPause] = useState(false);
+    const [cursorPosition, setCursorPosition] = useState<number>(0);
+
     const [subtitles, setSubtitles] = useState("");
     const [subtitlesToSend, setSubtitlesToSend] = useState("");
+    const subtitlesRef = useRef<string>("")
+    const subtitlesToSendRef = useRef<string>("")
+
     const [amountOfWordsToSend, setAmountOfWordsToSend] = useState<number>(3);
     const [amountOfTimeBetweenSends, setAmountOfTimeBetweenSends] = useState<number>(3);
     const [waitingTimeAfterModification, setWaitingTimeAfterModification] = useState<number>(3);
     const [amountOfWordsRemainAfterCleaned, setAmountOfWordsRemainAfterCleaned] = useState<number>(3);
-    const [subtitlesHaveWords, setSubtitlesHaveWords] = useState<boolean>(false);
-    const [shouldMark, setShouldMark] = useState<boolean>(false);
-    const [isEditing, setIsEditing] = useState<boolean>(false);
-    const subtitlesRef = useRef<string>("")
-    const subtitlesToSendRef = useRef<string>("")
+
+
     const subtitleSpanRef = useRef<HTMLSpanElement>(null);
     const cursorPositionRef = useRef(0);
-
+    const stompClientRef = useRef<Client | null>(null);
+        // const editableRef = useRef(null);
+        //
+        // const getTextPrecedingCaret = (editable) => {
+        //     var precedingChar = "", sel, range, precedingRange;
+        //     if (window.getSelection) {
+        //         sel = window.getSelection();
+        //         if (sel.rangeCount > 0) {
+        //             range = sel.getRangeAt(0).cloneRange();
+        //             range.collapse(true);
+        //             range.setStart(editable, 0);
+        //             precedingChar = range.toString().split(/\s+/).slice(0, range.toString().split(/\s+/).length-1).join(' ');
+        //         }
+        //     } else if ( (sel = document.selection) && sel.type != "Control") {
+        //         range = sel.createRange();
+        //         precedingRange = range.duplicate();
+        //         precedingRange.moveToElementText(editable);
+        //         precedingRange.setEndPoint("StartToEnd", range);
+        //         precedingChar = range.toString().split(/\s+/).slice(0, range.toString().split(/\s+/).length-1).join(' ');
+        //     }
+        //     return precedingChar;
+        // };
 
 
     const performAction = (key: string) => {
@@ -62,70 +90,8 @@ export default function HomePage() {
 
     const handleSubtitlesTextChange = (event: React.FormEvent<HTMLSpanElement>) => {
         saveCursorPosition();
-        setIsEditing(true)
-        setSubtitles(event.currentTarget.textContent!);
+        setSubtitles(event.currentTarget.textContent || "");
     };
-
-    const handleEnterKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>) => {
-        if (event.key === 'Enter' || event.key === 'Tab') {
-            event.preventDefault();
-        }
-    };
-
-    const handleSubtitlesTextBlur = () => {
-        setIsEditing(false)
-        console.log("Texto después de editar:");
-    };
-
-    const saveCursorPosition = () => {
-        const selection = window.getSelection();
-        if (selection!.rangeCount > 0) {
-            const range = selection!.getRangeAt(0);
-            const preCaretRange = range.cloneRange();
-            preCaretRange.selectNodeContents(subtitleSpanRef.current!);
-            preCaretRange.setEnd(range.startContainer, range.startOffset);
-            cursorPositionRef.current = preCaretRange.toString().length;
-        }
-    };
-
-    const restoreCursorPosition = () => {
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.setStart(subtitleSpanRef.current!, 0);
-        range.collapse(true);
-        let pos = 0;
-
-        const nodeIterator = document.createNodeIterator(subtitleSpanRef.current!, NodeFilter.SHOW_TEXT, null);
-        let node: Node | null;
-
-        while ((node = nodeIterator.nextNode()) !== null) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                const textNode = node as Text;
-                const nextPos = pos + textNode.length;
-                if (cursorPositionRef.current <= nextPos) {
-                    range.setStart(textNode, cursorPositionRef.current - pos);
-                    range.collapse(true);
-                    break;
-                }
-                pos = nextPos;
-            }
-        }
-        selection!.removeAllRanges();
-        selection!.addRange(range);
-    };
-
-
-    const handleSelect = () => {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            if (range) {
-                const startPoint = range.startOffset;
-                const end = range.endOffset;
-            }
-        }
-    };
-
 
 
     const handleChangeAmountOfTimeBetweenSends = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,11 +122,117 @@ export default function HomePage() {
         }
     };
 
+    const handleFocus = () => {
+        setIsEditing(true);
+    };
+
+    const handleBlur = () => {
+        setIsEditing(false);
+        setTimeout(() => setEditPause(false), 3000);  // Resume updates 3 seconds after editing
+    };
+
+    const handleClick = () => {
+        setEditPause(true);
+        setCursorWasClicked(true)
+    };
+
+    // function getTextPrecedingCaret(editable) {
+    //     var precedingChar = "", sel, range, precedingRange;
+    //     if (window.getSelection) {
+    //         sel = window.getSelection();
+    //         if (sel.rangeCount > 0) {
+    //             range = sel.getRangeAt(0).cloneRange();
+    //             range.collapse(true);
+    //             range.setStart(editable, 0);
+    //             //Por arreglar
+    //             precedingChar = range.toString().split(/\s+/).slice(0, range.toString().split(/\s+/).length-1).join(' ');
+    //         }
+    //     } else if ( (sel = document.selection) && sel.type != "Control") {
+    //         range = sel.createRange();
+    //         precedingRange = range.duplicate();
+    //         precedingRange.moveToElementText(editable);
+    //         precedingRange.setEndPoint("StartToEnd", range);
+    //         //Por arreglar
+    //         precedingChar = range.toString().split(/\s+/).slice(0, range.toString().split(/\s+/).length-1).join(' ');
+    //     }
+    //     return precedingChar;
+    // }
+
+    const saveCursorPosition = () => {
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0 && subtitleSpanRef.current) {
+            const range = selection.getRangeAt(0);
+            const startContainer = range.startContainer;
+            let charCount = 0;
+            const nodeStack = [subtitleSpanRef.current];
+            let node;
+            while ((node = nodeStack.pop())) {
+                if (node === startContainer) {
+                    charCount += range.startOffset;
+                    break;
+                } else if (node.nodeType === Node.TEXT_NODE) {
+                    charCount += node.nodeValue!.length;
+                } else {
+                    let i = node.childNodes.length;
+                    while (i--) {
+                        // @ts-ignore
+                        nodeStack.push(node.childNodes[i]);
+                    }
+                }
+            }
+            cursorPositionRef.current = charCount;
+        }
+    };
+
+    const restoreCursorPosition = () => {
+        let position = cursorPositionRef.current;
+        const selection = window.getSelection();
+        if (selection && subtitleSpanRef.current) {
+            const range = document.createRange();
+            range.setStart(subtitleSpanRef.current, 0);
+            range.collapse(true);
+            const nodeStack = [subtitleSpanRef.current];
+            let node, foundStart = false, charCount = 0;
+            while (!foundStart && (node = nodeStack.pop())) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const nextCharCount = charCount + node.nodeValue!.length;
+                    if (position >= charCount && position <= nextCharCount) {
+                        range.setStart(node, position - charCount);
+                        range.collapse(true);
+                        foundStart = true;
+                    }
+                    charCount = nextCharCount;
+                } else {
+                    let i = node.childNodes.length;
+                    while (i--) {
+                        // @ts-ignore
+                        nodeStack.push(node.childNodes[i]);
+                    }
+                }
+            }
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+    };
+
+
     useEffect(() => {
-        window.addEventListener('keydown', handleKeyPress);
+        const editableSpan = subtitleSpanRef.current;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault();
+            }else if(event.key === 'Backspace' || event.key.length === 1) {
+                saveCursorPosition();
+            } else if (event.key === 's' || event.key === 'l' || event.key === 'i' || event.key === 'd') {
+                handleKeyPress(event);
+            }
+        };
+
+        editableSpan!.addEventListener('keydown', handleKeyDown);
 
         return () => {
-            window.removeEventListener('keydown', handleKeyPress);
+            editableSpan!.removeEventListener('keydown', handleKeyDown);
         };
     }, []);
 
@@ -175,19 +247,16 @@ export default function HomePage() {
     useEffect(() => {
         const intervalId = setInterval(() => {
             if (subtitlesRef.current) {
-                if (!isEditing && subtitlesHaveWords){
-                    const amountOfChars = subtitlesRef.current.slice(0, cursorPositionRef.current).split(/\s+/)
-                    console.log(amountOfChars)
+                if (!isEditing && subtitlesHaveWords) {
                     let words = subtitlesRef.current.trim().split(/\s+/);
                     let wordsToSend = words.slice(0, amountOfWordsToSend).join(" ") + " ";
                     let remainingWords = words.slice(amountOfWordsToSend).join(" ");
-                    if (wordsToSend.length >= amountOfChars.length){
-                        cursorPositionRef.current = 0
-                    }
                     setSubtitles(remainingWords);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
                     setShouldMark(true)
-                    restoreCursorPosition()
+                    restoreCursorPosition();
+                }else {
+                    setShouldMark(false)
                 }
             }
         }, amountOfTimeBetweenSends * 1000);
@@ -203,42 +272,72 @@ export default function HomePage() {
     }, [subtitles, subtitlesToSend]);
 
     useEffect(() => {
-        const newClient = new Client({
+        if (cursorWasClicked) {
+            const intervalId = setInterval(() => {
+                setCursorWasClicked(false)
+                clearTimeout(intervalId);
+            }, 3000);
+        }
+    }, [cursorWasClicked]);
+
+    // useLayoutEffect(() => {
+    //     if (subtitleSpanRef.current && isEditing) {
+    //         const range = document.createRange();
+    //         const selection = window.getSelection();
+    //         const nodeIterator = document.createNodeIterator(subtitleSpanRef.current, NodeFilter.SHOW_TEXT);
+    //         let currentNode;
+    //         const textNodes = [];
+    //
+    //         while (currentNode = nodeIterator.nextNode()) {
+    //             textNodes.push(currentNode);
+    //         }
+    //
+    //         let pos = 0;
+    //         for (let node of textNodes) {
+    //             const nextPos = pos + node.textContent!.length;
+    //             if (cursorPosition > nextPos) {
+    //                 range.setStart(node, cursorPosition);
+    //             }
+    //             range.collapse(true);
+    //             selection!.removeAllRanges();
+    //             selection!.addRange(range);
+    //             break;
+    //         }
+    //     }
+    // }, [subtitles]);
+
+    useEffect(() => {
+        stompClientRef.current = new Client({
             brokerURL: `${BASE_URL}/publisher/ws`,
             reconnectDelay: 5000,
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
+            onConnect: () => {
+                setIsPlayingSubTitle(true);
+                stompClientRef.current!.subscribe(`${BASE_TOPIC}/subtitles/0`, (message) => {
+                    const subtitleMessage: SubtitleMessage = JSON.parse(message.body);
+                    if (!isEditing || !editPause) {
+                        const newText = subtitleMessage.subtitles.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
+                        setSubtitles(prev => `${prev}\n${newText}`);
+                    }
+                });
+            },
+            onStompError: (frame) => {
+                console.error('Broker reported error: ' + frame.headers['message']);
+                console.error('Additional details: ' + frame.body);
+            },
         });
 
-        newClient.onConnect = () => {
-            const newSubscription = newClient.subscribe(`${BASE_TOPIC}/subtitles/0`, (message) => {
-                const subtitleMessage: SubtitleMessage = JSON.parse(message.body);
-                if (subtitleMessage) {
-                    const subtitlesArray = subtitleMessage.subtitles;
-                    const newText = subtitlesArray.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
-                    saveCursorPosition()
-                    setSubtitles(prev => prev + "\n" + newText);
-                    restoreCursorPosition()
-                }
-            });
-            return () => {
-                newSubscription.unsubscribe();
-                newClient.deactivate().then();
-            };
-        };
+        stompClientRef.current.activate();
 
-        setIsPlayingSubTitle(true)
-        newClient.activate();
         return () => {
-            newClient.deactivate().then();
+            stompClientRef.current!.deactivate().then();
         };
-
     }, []);
 
     useEffect(() => {
-            restoreCursorPosition();
+        restoreCursorPosition();
     }, [subtitles]);
-
 
 
     return (
@@ -314,20 +413,21 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                <div className="w-full border border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[200px] relative">
+                <div
+                    className="w-full border border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[200px] relative">
                     <div className="p-4 space-y-4">
-                        <span contentEditable={false} className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
+                        <span contentEditable={false}
+                              className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
                             {subtitlesToSend}
                         </span>
                         <span
                             ref={subtitleSpanRef}
                             contentEditable
                             suppressContentEditableWarning={true}
+                            onClick={handleClick}
+                            onBlur={handleBlur}
+                            onFocus={handleFocus}
                             onInput={handleSubtitlesTextChange}
-                            onBlur={saveCursorPosition}
-                            onFocus={restoreCursorPosition}
-                            onKeyDown={handleEnterKeyDown}
-                            onSelect={handleSelect}
                             className={`py-1 my-1 outline-none`}>
                             {subtitles}
                         </span>

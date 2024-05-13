@@ -29,6 +29,11 @@ export default function AudioPlayer(){
         flushTime: flushingTime,
     });
 
+    // useEffect(() => {
+    //     if (typeof window !== 'undefined') {
+    //     }
+    // }, []);
+
 
     const togglePlayAudio = () => {
         setIsPlayingAudio(!isPlayingAudio);
