@@ -2,6 +2,32 @@
   "HomePage": {
     "title": "Subtitles Corrector",
     "description": "An efficient tool for correcting subtitles.",
-    "serverConnection": "Server connection"
+    "serverConnection": "Server Connection",
+    "emissionSubtitles": "Emission of subtitles",
+    "connected": "Connected",
+    "reconnect": "Reconnect",
+    "parameters": "Parameters",
+    "amountWordsToSend": "Amount of words to send",
+    "enterAmount": "Enter amount",
+    "timeBetweenSends": "Time between sends",
+    "enterTime": "Enter time",
+    "waitingTimeAfterModification": "Waiting time after modification",
+    "remainingWordsAfterCleaned": "Remaining words after cleaned",
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "Shortcuts": {
+      "sendText": "Send text up to cursor position",
+      "clearText": "Clear sent text",
+      "startAutoSend": "Start automatic sending",
+      "stopAutoSend": "Stop automatic sending"
+    },
+    "AudioPlayer": {
+      "audioBroadcast": "Audio Broadcast",
+      "connected": "Connected",
+      "frequency": "Frequency",
+      "decreaseFrequency": "Decrease frequency",
+      "pauseAudio": "Pause Audio",
+      "playAudio": "Play audio",
+      "increaseFrequency": "Increase frequency"
+    }
   }
 }

@@ -4,7 +4,7 @@ import {
     InformationCircleIcon,
     WifiIcon,
 } from "@heroicons/react/24/outline";
-import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Client} from '@stomp/stompjs';
 import {SubtitleMessage} from "@/schemas/SubtitleMessageSchema";
 import {useTranslations} from 'next-intl';
@@ -19,48 +19,20 @@ export default function HomePage() {
     const BASE_TOPIC = "/topic/providers/RTVE/channels/Teledeporte";
 
     const [isPlayingSubTitle, setIsPlayingSubTitle] = useState<boolean>(false);
-    const [subtitlesHaveWords, setSubtitlesHaveWords] = useState<boolean>(false);
-    const [shouldMark, setShouldMark] = useState<boolean>(false);
-    const [isEditing, setIsEditing] = useState<boolean>(false);
-    const [cursorWasClicked, setCursorWasClicked] = useState<boolean>(false);
-    const [editPause, setEditPause] = useState(false);
-    const [cursorPosition, setCursorPosition] = useState<number>(0);
-
     const [subtitles, setSubtitles] = useState("");
     const [subtitlesToSend, setSubtitlesToSend] = useState("");
-    const subtitlesRef = useRef<string>("")
-    const subtitlesToSendRef = useRef<string>("")
-
     const [amountOfWordsToSend, setAmountOfWordsToSend] = useState<number>(3);
     const [amountOfTimeBetweenSends, setAmountOfTimeBetweenSends] = useState<number>(3);
     const [waitingTimeAfterModification, setWaitingTimeAfterModification] = useState<number>(3);
     const [amountOfWordsRemainAfterCleaned, setAmountOfWordsRemainAfterCleaned] = useState<number>(3);
-
-
+    const [subtitlesHaveWords, setSubtitlesHaveWords] = useState<boolean>(false);
+    const [enabledMarking, setEnableMarking] = useState<boolean>(true);
+    const [shouldMark, setShouldMark] = useState<boolean>(false);
+    const [isEditing, setIsEditing] = useState<boolean>(false);
+    const subtitlesRef = useRef<string>("")
+    const subtitlesToSendRef = useRef<string>("")
     const subtitleSpanRef = useRef<HTMLSpanElement>(null);
     const cursorPositionRef = useRef(0);
-    const stompClientRef = useRef<Client | null>(null);
-        // const editableRef = useRef(null);
-        //
-        // const getTextPrecedingCaret = (editable) => {
-        //     var precedingChar = "", sel, range, precedingRange;
-        //     if (window.getSelection) {
-        //         sel = window.getSelection();
-        //         if (sel.rangeCount > 0) {
-        //             range = sel.getRangeAt(0).cloneRange();
-        //             range.collapse(true);
-        //             range.setStart(editable, 0);
-        //             precedingChar = range.toString().split(/\s+/).slice(0, range.toString().split(/\s+/).length-1).join(' ');
-        //         }
-        //     } else if ( (sel = document.selection) && sel.type != "Control") {
-        //         range = sel.createRange();
-        //         precedingRange = range.duplicate();
-        //         precedingRange.moveToElementText(editable);
-        //         precedingRange.setEndPoint("StartToEnd", range);
-        //         precedingChar = range.toString().split(/\s+/).slice(0, range.toString().split(/\s+/).length-1).join(' ');
-        //     }
-        //     return precedingChar;
-        // };
 
 
     const performAction = (key: string) => {
@@ -89,10 +61,73 @@ export default function HomePage() {
     };
 
     const handleSubtitlesTextChange = (event: React.FormEvent<HTMLSpanElement>) => {
+        setIsEditing(true)
+        setEnableMarking(false)
+        setSubtitles(event.currentTarget.textContent!);
         saveCursorPosition();
-        setSubtitles(event.currentTarget.textContent || "");
     };
 
+    const handleEnterKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>) => {
+        if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault();
+        }
+    };
+
+    const saveCursorPosition = useCallback((amountOFCharactersToRest: number = 0) => {
+        const selection = window.getSelection();
+        if (selection!.rangeCount > 0) {
+            const range = selection!.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(subtitleSpanRef.current!);
+            preCaretRange.setEnd(range.startContainer, range.startOffset);
+            if (preCaretRange.toString().length - amountOFCharactersToRest > 0) {
+                cursorPositionRef.current = preCaretRange.toString().length - amountOFCharactersToRest;
+            } else {
+                cursorPositionRef.current = 0;
+            }
+            setEnableMarking(false)
+        }
+    }, []);
+
+    const restoreCursorPosition = useCallback(() => {
+
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.setStart(subtitleSpanRef.current!, 0);
+        range.collapse(true);
+        let pos = 0;
+
+        const nodeIterator = document.createNodeIterator(subtitleSpanRef.current!, NodeFilter.SHOW_TEXT, null);
+        let node: Node | null;
+
+        while ((node = nodeIterator.nextNode()) !== null) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                const textNode = node as Text;
+                const nextPos = pos + textNode.length;
+                if (cursorPositionRef.current <= nextPos) {
+                    range.setStart(textNode, cursorPositionRef.current - pos);
+                    range.collapse(true);
+                    break;
+                }
+                pos = nextPos;
+            }
+        }
+        selection!.removeAllRanges();
+        selection!.addRange(range);
+    }, []);
+
+    // const cursorPosition = useMemo(() => {
+    //     const selection = window.getSelection();
+    //     let position = 0;
+    //     if (selection!.rangeCount > 0) {
+    //         const range = selection!.getRangeAt(0);
+    //         const preCaretRange = range.cloneRange();
+    //         preCaretRange.selectNodeContents(subtitleSpanRef.current!);
+    //         preCaretRange.setEnd(range.startContainer, range.startOffset);
+    //         position = preCaretRange.toString().length;
+    //     }
+    //     return position;
+    // }, [subtitleSpanRef.current]);
 
     const handleChangeAmountOfTimeBetweenSends = (event: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseFloat(event.target.value);
@@ -122,117 +157,11 @@ export default function HomePage() {
         }
     };
 
-    const handleFocus = () => {
-        setIsEditing(true);
-    };
-
-    const handleBlur = () => {
-        setIsEditing(false);
-        setTimeout(() => setEditPause(false), 3000);  // Resume updates 3 seconds after editing
-    };
-
-    const handleClick = () => {
-        setEditPause(true);
-        setCursorWasClicked(true)
-    };
-
-    // function getTextPrecedingCaret(editable) {
-    //     var precedingChar = "", sel, range, precedingRange;
-    //     if (window.getSelection) {
-    //         sel = window.getSelection();
-    //         if (sel.rangeCount > 0) {
-    //             range = sel.getRangeAt(0).cloneRange();
-    //             range.collapse(true);
-    //             range.setStart(editable, 0);
-    //             //Por arreglar
-    //             precedingChar = range.toString().split(/\s+/).slice(0, range.toString().split(/\s+/).length-1).join(' ');
-    //         }
-    //     } else if ( (sel = document.selection) && sel.type != "Control") {
-    //         range = sel.createRange();
-    //         precedingRange = range.duplicate();
-    //         precedingRange.moveToElementText(editable);
-    //         precedingRange.setEndPoint("StartToEnd", range);
-    //         //Por arreglar
-    //         precedingChar = range.toString().split(/\s+/).slice(0, range.toString().split(/\s+/).length-1).join(' ');
-    //     }
-    //     return precedingChar;
-    // }
-
-    const saveCursorPosition = () => {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0 && subtitleSpanRef.current) {
-            const range = selection.getRangeAt(0);
-            const startContainer = range.startContainer;
-            let charCount = 0;
-            const nodeStack = [subtitleSpanRef.current];
-            let node;
-            while ((node = nodeStack.pop())) {
-                if (node === startContainer) {
-                    charCount += range.startOffset;
-                    break;
-                } else if (node.nodeType === Node.TEXT_NODE) {
-                    charCount += node.nodeValue!.length;
-                } else {
-                    let i = node.childNodes.length;
-                    while (i--) {
-                        // @ts-ignore
-                        nodeStack.push(node.childNodes[i]);
-                    }
-                }
-            }
-            cursorPositionRef.current = charCount;
-        }
-    };
-
-    const restoreCursorPosition = () => {
-        let position = cursorPositionRef.current;
-        const selection = window.getSelection();
-        if (selection && subtitleSpanRef.current) {
-            const range = document.createRange();
-            range.setStart(subtitleSpanRef.current, 0);
-            range.collapse(true);
-            const nodeStack = [subtitleSpanRef.current];
-            let node, foundStart = false, charCount = 0;
-            while (!foundStart && (node = nodeStack.pop())) {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    const nextCharCount = charCount + node.nodeValue!.length;
-                    if (position >= charCount && position <= nextCharCount) {
-                        range.setStart(node, position - charCount);
-                        range.collapse(true);
-                        foundStart = true;
-                    }
-                    charCount = nextCharCount;
-                } else {
-                    let i = node.childNodes.length;
-                    while (i--) {
-                        // @ts-ignore
-                        nodeStack.push(node.childNodes[i]);
-                    }
-                }
-            }
-            selection.removeAllRanges();
-            selection.addRange(range);
-        }
-    };
-
-
     useEffect(() => {
-        const editableSpan = subtitleSpanRef.current;
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Enter' || event.key === 'Tab') {
-                event.preventDefault();
-            }else if(event.key === 'Backspace' || event.key.length === 1) {
-                saveCursorPosition();
-            } else if (event.key === 's' || event.key === 'l' || event.key === 'i' || event.key === 'd') {
-                handleKeyPress(event);
-            }
-        };
-
-        editableSpan!.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keydown', handleKeyPress);
 
         return () => {
-            editableSpan!.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keydown', handleKeyPress);
         };
     }, []);
 
@@ -247,16 +176,14 @@ export default function HomePage() {
     useEffect(() => {
         const intervalId = setInterval(() => {
             if (subtitlesRef.current) {
-                if (!isEditing && subtitlesHaveWords) {
+                if (!isEditing && subtitlesHaveWords && enabledMarking) {
                     let words = subtitlesRef.current.trim().split(/\s+/);
                     let wordsToSend = words.slice(0, amountOfWordsToSend).join(" ") + " ";
+                    saveCursorPosition(wordsToSend.length);
                     let remainingWords = words.slice(amountOfWordsToSend).join(" ");
                     setSubtitles(remainingWords);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
                     setShouldMark(true)
-                    restoreCursorPosition();
-                }else {
-                    setShouldMark(false)
                 }
             }
         }, amountOfTimeBetweenSends * 1000);
@@ -271,67 +198,45 @@ export default function HomePage() {
         subtitlesToSendRef.current = subtitlesToSend
     }, [subtitles, subtitlesToSend]);
 
-    useEffect(() => {
-        if (cursorWasClicked) {
-            const intervalId = setInterval(() => {
-                setCursorWasClicked(false)
-                clearTimeout(intervalId);
-            }, 3000);
-        }
-    }, [cursorWasClicked]);
-
-    // useLayoutEffect(() => {
-    //     if (subtitleSpanRef.current && isEditing) {
-    //         const range = document.createRange();
-    //         const selection = window.getSelection();
-    //         const nodeIterator = document.createNodeIterator(subtitleSpanRef.current, NodeFilter.SHOW_TEXT);
-    //         let currentNode;
-    //         const textNodes = [];
-    //
-    //         while (currentNode = nodeIterator.nextNode()) {
-    //             textNodes.push(currentNode);
-    //         }
-    //
-    //         let pos = 0;
-    //         for (let node of textNodes) {
-    //             const nextPos = pos + node.textContent!.length;
-    //             if (cursorPosition > nextPos) {
-    //                 range.setStart(node, cursorPosition);
-    //             }
-    //             range.collapse(true);
-    //             selection!.removeAllRanges();
-    //             selection!.addRange(range);
-    //             break;
-    //         }
-    //     }
-    // }, [subtitles]);
 
     useEffect(() => {
-        stompClientRef.current = new Client({
+        const timer = setTimeout(() => {
+            setEnableMarking(true)
+            setIsEditing(!isEditing)
+        }, 3000);
+
+        return () => clearTimeout(timer);
+    }, [isEditing, enabledMarking]);
+
+    useEffect(() => {
+        const newClient = new Client({
             brokerURL: `${BASE_URL}/publisher/ws`,
             reconnectDelay: 5000,
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
-            onConnect: () => {
-                setIsPlayingSubTitle(true);
-                stompClientRef.current!.subscribe(`${BASE_TOPIC}/subtitles/0`, (message) => {
-                    const subtitleMessage: SubtitleMessage = JSON.parse(message.body);
-                    if (!isEditing || !editPause) {
-                        const newText = subtitleMessage.subtitles.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
-                        setSubtitles(prev => `${prev}\n${newText}`);
-                    }
-                });
-            },
-            onStompError: (frame) => {
-                console.error('Broker reported error: ' + frame.headers['message']);
-                console.error('Additional details: ' + frame.body);
-            },
         });
 
-        stompClientRef.current.activate();
+        newClient.onConnect = () => {
+            const newSubscription = newClient.subscribe(`${BASE_TOPIC}/subtitles/0`, (message) => {
+                const subtitleMessage: SubtitleMessage = JSON.parse(message.body);
+                if (subtitleMessage) {
+                    if (!isEditing) {
+                        const subtitlesArray = subtitleMessage.subtitles;
+                        const newText = subtitlesArray.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
+                        setSubtitles(prev => prev + "\n" + newText);
+                    }
+                }
+            });
+            return () => {
+                newSubscription.unsubscribe();
+                newClient.deactivate().then();
+            };
+        };
 
+        setIsPlayingSubTitle(true)
+        newClient.activate();
         return () => {
-            stompClientRef.current!.deactivate().then();
+            newClient.deactivate().then();
         };
     }, []);
 
@@ -348,67 +253,67 @@ export default function HomePage() {
                     <div className="p-4 space-y-5">
                         <label className="flex items-center card-title">{t('serverConnection')}</label>
                         <div>
-                            <label className="flex items-center label">Emisión de subtítulos</label>
+                            <label className="flex items-center label">{t('emissionSubtitles')}</label>
                             <label className="flex items-center gap-2">
                                 {isPlayingSubTitle ?
                                     <WifiIcon className="size-5 text-green-500"/>
                                     :
                                     <WifiIcon className="size-5 text-red-500"/>
                                 }
-                                Conectado
-                                <ArrowPathIcon className="size-5 text-blue-500 cursor-pointer" title="Reconectar"/>
+                                {t('connected')}
+                                <ArrowPathIcon className="size-5 text-blue-500 cursor-pointer" title={t('reconnect')}/>
                             </label>
                         </div>
                         <AudioPlayer/>
-                        <label className="items-center card-title">Parámetros</label>
+                        <label className="items-center card-title">{t('parameters')}</label>
                         <div className="form-control gap-5">
-                            <label>{"Cantidad de palabras a enviar"}</label>
+                            <label>{t('amountWordsToSend')}</label>
                             <label className="input input-bordered flex items-center gap-2">
-                                <input type="number" className="grow" placeholder="Introduzca cantidad"
+                                <input type="number" className="grow" placeholder={t('enterAmount')}
                                        onChange={handleChangeAmountOfWordsToSend}
                                        min={0}
                                        value={amountOfWordsToSend}/>
-                                <div className="tooltip tooltip-left" data-tip="Cantidad de palabras a enviar">
+                                <div className="tooltip tooltip-left" data-tip={t('amountWordsToSend')}>
                                     <InformationCircleIcon className="size-5 text-blue-500 cursor-pointer"/>
                                 </div>
                             </label>
 
-                            <label>{"Tiempo entre envíos"}</label>
+                            <label>{t('timeBetweenSends')}</label>
                             <label className="input input-bordered flex items-center gap-2">
-                                <input type="number" className="grow" placeholder="Introduzca tiempo"
+                                <input type="number" className="grow" placeholder={t('enterTime')}
                                        onChange={handleChangeAmountOfTimeBetweenSends}
                                        min={0}
                                        value={amountOfTimeBetweenSends}/>
-                                <div className="tooltip tooltip-left" data-tip="Tiempo entre envíos">
+                                <div className="tooltip tooltip-left" data-tip={t('timeBetweenSends')}>
                                     <InformationCircleIcon className="size-5 text-blue-500 cursor-pointer"/>
                                 </div>
                             </label>
 
-                            <label>{"Tiempo de espera luego de modificación en segundos"}</label>
+                            <label>{t('waitingTimeAfterModification')}</label>
                             <label className="input input-bordered flex items-center gap-2">
-                                <input type="number" className="grow" placeholder="Introduzca tiempo"
+                                <input type="number" className="grow" placeholder={t('enterTime')}
                                        onChange={handleChangeWaitingTimeAfterModification}
                                        min={0}
                                        value={waitingTimeAfterModification}/>
                                 <div className="tooltip tooltip-left"
-                                     data-tip="Tiempo de espera luego de modificación en segundos">
+                                     data-tip={t('waitingTimeAfterModification')}>
                                     <InformationCircleIcon className="size-5 text-blue-500 cursor-pointer"/>
                                 </div>
                             </label>
 
-                            <label>{"Cantidad de palabras restantes despues de limpiado"}</label>
+                            <label>{t('remainingWordsAfterCleaned')}</label>
                             <label className="input input-bordered flex items-center gap-2">
-                                <input type="number" className="grow" placeholder="Introduzca cantidad"
+                                <input type="number" className="grow" placeholder={t('enterAmount')}
                                        onChange={handleChangeAmountOfWordsRemainAfterCleaned}
                                        min={0}
                                        value={amountOfWordsRemainAfterCleaned}/>
                                 <div className="tooltip tooltip-left"
-                                     data-tip="Cantidad de palabras restantes despues de limpiado">
+                                     data-tip={t('remainingWordsAfterCleaned')}>
                                     <InformationCircleIcon className="size-5 text-blue-500 cursor-pointer"/>
                                 </div>
                             </label>
                         </div>
-                        <label className="items-center card-title">Atajos de teclado</label>
+                        <label className="items-center card-title">{t('keyboardShortcuts')}</label>
                         <Shortcuts/>
                     </div>
                 </div>
@@ -424,10 +329,11 @@ export default function HomePage() {
                             ref={subtitleSpanRef}
                             contentEditable
                             suppressContentEditableWarning={true}
-                            onClick={handleClick}
-                            onBlur={handleBlur}
-                            onFocus={handleFocus}
                             onInput={handleSubtitlesTextChange}
+                            onClick={() => saveCursorPosition}
+                            onBlur={() => saveCursorPosition}
+                            onFocus={restoreCursorPosition}
+                            onKeyDown={handleEnterKeyDown}
                             className={`py-1 my-1 outline-none`}>
                             {subtitles}
                         </span>
