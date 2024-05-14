@@ -2,6 +2,32 @@
   "HomePage": {
     "title": "Corrector de Subtítulos",
     "description": "Una herramienta eficiente para corregir subtítulos.",
-    "serverConnection": "Conexión al servidor"
+    "serverConnection": "Conexión al Servidor",
+    "emissionSubtitles": "Emisión de Subtítulos",
+    "connected": "Conectado",
+    "reconnect": "Reconectar",
+    "parameters": "Parámetros",
+    "amountWordsToSend": "Cantidad de Palabras a Enviar",
+    "enterAmount": "Introduzca Cantidad",
+    "timeBetweenSends": "Tiempo Entre Envíos",
+    "enterTime": "Introduzca Tiempo",
+    "waitingTimeAfterModification": "Tiempo de Espera Después de Modificación",
+    "remainingWordsAfterCleaned": "Palabras Restantes Después de Limpieza",
+    "keyboardShortcuts": "Atajos de Teclado",
+    "Shortcuts": {
+      "sendText": "Enviar texto hasta posición del cursor",
+      "clearText": "Limpiar texto enviado",
+      "startAutoSend": "Iniciar envío automático",
+      "stopAutoSend": "Detener envío automático"
+    },
+    "AudioPlayer": {
+      "audioBroadcast": "Emisión de audio",
+      "connected": "Conectado",
+      "frequency": "Frecuencia",
+      "decreaseFrequency": "Disminuir frecuencia",
+      "pauseAudio": "Pausar Audio",
+      "playAudio": "Reproducir audio",
+      "increaseFrequency": "Aumentar frecuencia"
+    }
   }
 }

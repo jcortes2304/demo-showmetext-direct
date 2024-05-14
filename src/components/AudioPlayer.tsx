@@ -9,9 +9,11 @@ import {
     SpeakerXMarkIcon,
     WifiIcon
 } from "@heroicons/react/24/outline";
+import {useTranslations} from "next-intl";
 
 
 export default function AudioPlayer(){
+    const t = useTranslations('HomePage.AudioPlayer');
 
     const [flushingTime, setFlushingTime] = useState<number>(0);
     const [subscriptionAudio, setSubscriptionAudio] = useState<StompSubscription | null>(null);
@@ -78,22 +80,22 @@ export default function AudioPlayer(){
 
     return (
         <div>
-            <label className="flex items-center label">Emisión de audio</label>
+            <label className="flex items-center label">{t('audioBroadcast')}</label>
             <label className="flex items-center gap-2">
                 {isPlayingAudio ?
                     <WifiIcon className="size-5 text-green-500"/>
                     :
                     <WifiIcon className="size-5 text-red-500"/>
                 }
-                Conectado
+                {t('connected')}
             </label>
             <div className="mt-3 justify-start flex items-center gap-2">
-                <label className="label font-bold text-sm">Frecuencia: </label>
+                <label className="label font-bold text-sm">{t('frequency')}: </label>
                 <div className="badge badge-lg">{flushingTime}</div>
             </div>
             <div className="flex gap-2">
                 <div className="tooltip tooltip-right"
-                     data-tip="Disminuir frecuencia">
+                     data-tip={t('decreaseFrequency')}>
                     <button
                         disabled={isPlayingAudio || flushingTime === 0}
                         onClick={() => setFlushingTime(flushingTime - 1000)}
@@ -102,7 +104,7 @@ export default function AudioPlayer(){
                     </button>
                 </div>
                 <div className="tooltip"
-                     data-tip={isPlayingAudio ? "Pausar Audio" : "Reproducir audio"}>
+                     data-tip={isPlayingAudio ? t('pauseAudio') : t('playAudio')}>
                     <button onClick={togglePlayAudio}
                             className="btn btn-outline btn-info mt-3 hover:text-white">
                         {isPlayingAudio ? <SpeakerXMarkIcon className="size-5"/> :
@@ -110,7 +112,7 @@ export default function AudioPlayer(){
                     </button>
                 </div>
                 <div className="tooltip"
-                     data-tip="Aumentar frecuencia">
+                     data-tip={t('increaseFrequency')}>
                     <button
                         disabled={isPlayingAudio}
                         onClick={() => setFlushingTime(flushingTime + 1000)}
