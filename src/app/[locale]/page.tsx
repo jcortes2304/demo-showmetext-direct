@@ -1,10 +1,6 @@
 "use client"
-import {
-    ArrowPathIcon,
-    InformationCircleIcon,
-    WifiIcon,
-} from "@heroicons/react/24/outline";
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {ArrowPathIcon, InformationCircleIcon, WifiIcon,} from "@heroicons/react/24/outline";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import {Client} from '@stomp/stompjs';
 import {SubtitleMessage} from "@/schemas/SubtitleMessageSchema";
 import {useTranslations} from 'next-intl';
@@ -29,6 +25,8 @@ export default function HomePage() {
     const [enabledMarking, setEnableMarking] = useState<boolean>(true);
     const [shouldMark, setShouldMark] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
+    const [automaticSendFlag, setAutomaticSendFlag] = useState<boolean>(true);
+
     const subtitlesRef = useRef<string>("")
     const subtitlesToSendRef = useRef<string>("")
     const subtitleSpanRef = useRef<HTMLSpanElement>(null);
@@ -44,14 +42,18 @@ export default function HomePage() {
             switch (event.key.toLowerCase()) {
                 case "s":
                     performAction(event.key);
+                    sendSubtitlesUntilCursor();
                     break;
                 case "l":
+                    clearSentSubtitles();
                     performAction(event.key);
                     break;
                 case "i":
+                    setAutomaticSendFlag(true);
                     performAction(event.key);
                     break;
                 case "d":
+                    setAutomaticSendFlag(false);
                     performAction(event.key);
                     break;
                 default:
@@ -60,9 +62,15 @@ export default function HomePage() {
         }
     };
 
+    const clearSentSubtitles = () => {
+        const words = subtitlesToSendRef.current.split(/\s+/).filter(word => word !== "");
+        const wordToStayAfterCleaned = words.slice(words.length - amountOfWordsRemainAfterCleaned, words.length).join(" ") + " ";
+        setSubtitlesToSend(wordToStayAfterCleaned);
+        subtitlesToSendRef.current = wordToStayAfterCleaned;
+    }
+
     const handleSubtitlesTextChange = (event: React.FormEvent<HTMLSpanElement>) => {
         setIsEditing(true)
-        setEnableMarking(false)
         setSubtitles(event.currentTarget.textContent!);
         saveCursorPosition();
     };
@@ -72,6 +80,40 @@ export default function HomePage() {
             event.preventDefault();
         }
     };
+
+    const sendSubtitlesUntilCursor = () => {
+        const words = subtitlesRef.current!.split(/\s+/).filter(word => word !== "");
+        const position = getCursorPositionInWords(words);
+        const wordsToSend = words.slice(0, position).join(" ") + " ";
+        const remainingWords = words.slice(position).join(" ");
+        saveCursorPosition(wordsToSend.length);
+        setSubtitles(remainingWords);
+        setSubtitlesToSend(prev => prev + " " + wordsToSend);
+        setShouldMark(true)
+    }
+
+    const getCursorPositionInWords = useCallback((words: string[]) => {
+        let position = 0;
+        let chars = 0;
+        while (chars < cursorPositionRef.current && position < words.length) {
+            chars += words[position].length + 1; // +1 for the space or newline between words
+            position++;
+        }
+        return position;
+    }, []);
+
+    const getCursorPosition = useCallback(() => {
+        const selection = window.getSelection();
+        if (selection!.rangeCount > 0) {
+            const range = selection!.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(subtitleSpanRef.current!);
+            preCaretRange.setEnd(range.endContainer, range.endOffset);
+            return preCaretRange.toString().length;
+        }
+        return 0;
+    }, []);
+
 
     const saveCursorPosition = useCallback((amountOFCharactersToRest: number = 0) => {
         const selection = window.getSelection();
@@ -85,7 +127,6 @@ export default function HomePage() {
             } else {
                 cursorPositionRef.current = 0;
             }
-            setEnableMarking(false)
         }
     }, []);
 
@@ -116,19 +157,6 @@ export default function HomePage() {
         selection!.addRange(range);
     }, []);
 
-    // const cursorPosition = useMemo(() => {
-    //     const selection = window.getSelection();
-    //     let position = 0;
-    //     if (selection!.rangeCount > 0) {
-    //         const range = selection!.getRangeAt(0);
-    //         const preCaretRange = range.cloneRange();
-    //         preCaretRange.selectNodeContents(subtitleSpanRef.current!);
-    //         preCaretRange.setEnd(range.startContainer, range.startOffset);
-    //         position = preCaretRange.toString().length;
-    //     }
-    //     return position;
-    // }, [subtitleSpanRef.current]);
-
     const handleChangeAmountOfTimeBetweenSends = (event: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseFloat(event.target.value);
         if (!isNaN(value)) {
@@ -157,6 +185,12 @@ export default function HomePage() {
         }
     };
 
+    const handleOnClick = () => {
+        setEnableMarking(false)
+        saveCursorPosition();
+    };
+
+
     useEffect(() => {
         window.addEventListener('keydown', handleKeyPress);
 
@@ -174,39 +208,45 @@ export default function HomePage() {
     }, [subtitles]);
 
     useEffect(() => {
-        const intervalId = setInterval(() => {
-            if (subtitlesRef.current) {
-                if (!isEditing && subtitlesHaveWords && enabledMarking) {
+
+        if (!subtitlesHaveWords || !enabledMarking) {
+            return;
+        }
+
+        if (automaticSendFlag) {
+            console.log("Automatic send is enabled")
+            const intervalId = setInterval(() => {
+                if (subtitlesRef.current) {
                     let words = subtitlesRef.current.trim().split(/\s+/);
                     let wordsToSend = words.slice(0, amountOfWordsToSend).join(" ") + " ";
-                    saveCursorPosition(wordsToSend.length);
                     let remainingWords = words.slice(amountOfWordsToSend).join(" ");
+                    saveCursorPosition(wordsToSend.length);
                     setSubtitles(remainingWords);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
                     setShouldMark(true)
                 }
-            }
-        }, amountOfTimeBetweenSends * 1000);
+            }, amountOfTimeBetweenSends * 1000);
 
-        return () => {
-            clearTimeout(intervalId);
-        };
-    }, [amountOfTimeBetweenSends, amountOfWordsToSend, subtitlesHaveWords]);
+            return () => {
+                clearTimeout(intervalId);
+            };
+        }else {
+            console.log("Automatic send is disabled")
+        }
+    }, [automaticSendFlag, amountOfTimeBetweenSends, amountOfWordsToSend, subtitlesHaveWords, enabledMarking]);
 
     useEffect(() => {
         subtitlesRef.current = subtitles
         subtitlesToSendRef.current = subtitlesToSend
     }, [subtitles, subtitlesToSend]);
 
-
     useEffect(() => {
         const timer = setTimeout(() => {
             setEnableMarking(true)
-            setIsEditing(!isEditing)
-        }, 3000);
+        }, 5000);
 
         return () => clearTimeout(timer);
-    }, [isEditing, enabledMarking]);
+    }, [enabledMarking]);
 
     useEffect(() => {
         const newClient = new Client({
@@ -330,7 +370,7 @@ export default function HomePage() {
                             contentEditable
                             suppressContentEditableWarning={true}
                             onInput={handleSubtitlesTextChange}
-                            onClick={() => saveCursorPosition}
+                            onClick={handleOnClick}
                             onBlur={() => saveCursorPosition}
                             onFocus={restoreCursorPosition}
                             onKeyDown={handleEnterKeyDown}
