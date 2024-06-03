@@ -1,4 +1,5 @@
-"use client"
+'use client';
+
 import {ArrowPathIcon, InformationCircleIcon, WifiIcon,} from "@heroicons/react/24/outline";
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {Client} from '@stomp/stompjs';
@@ -26,12 +27,13 @@ export default function HomePage() {
     const [shouldMark, setShouldMark] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [automaticSendFlag, setAutomaticSendFlag] = useState<boolean>(true);
-
+    const [serverMessage, setServerMessage] = useState<string>("");
     const subtitlesRef = useRef<string>("")
     const subtitlesToSendRef = useRef<string>("")
     const subtitleSpanRef = useRef<HTMLSpanElement>(null);
     const cursorPositionRef = useRef(0);
-
+    const clientLocalRef = useRef<Client>(new Client());
+    const [subtitlesFromBackend, setSubtitlesFromBackend] = useState<string>("");
 
     const performAction = (key: string) => {
         console.log('Acción ejecutada por combinación de teclas Ctrl + Alt + ' + key);
@@ -56,11 +58,19 @@ export default function HomePage() {
                     setAutomaticSendFlag(false);
                     performAction(event.key);
                     break;
+                case "e":
+
+                    performAction(event.key);
+                    break;
                 default:
                     break;
             }
         }
     };
+
+    const handleSendSubtitles = () => {
+
+    }
 
     const clearSentSubtitles = () => {
         const words = subtitlesToSendRef.current.split(/\s+/).filter(word => word !== "");
@@ -230,7 +240,7 @@ export default function HomePage() {
             return () => {
                 clearTimeout(intervalId);
             };
-        }else {
+        } else {
             console.log("Automatic send is disabled")
         }
     }, [automaticSendFlag, amountOfTimeBetweenSends, amountOfWordsToSend, subtitlesHaveWords, enabledMarking]);
@@ -279,6 +289,61 @@ export default function HomePage() {
             newClient.deactivate().then();
         };
     }, []);
+
+    useEffect(() => {
+        const subtitleBackClient = new Client({
+            brokerURL: "ws://localhost:8081/ws",
+            reconnectDelay: 5000,
+            heartbeatIncoming: 4000,
+            heartbeatOutgoing: 4000,
+            onConnect: () => {
+                subtitleBackClient.subscribe('/topic/receiveSubtitle', (message) => {
+                    console.log("Receiving subtitles from backend: " + message.body);
+                    setSubtitlesFromBackend(message.body);
+                });
+            },
+            onDisconnect: () => {
+                console.log("Disconnected from WebSocket");
+            },
+            onStompError: (frame) => {
+                console.log("Broker reported error: " + frame.headers['message']);
+                console.log("Additional details: " + frame.body);
+            }
+        });
+
+        clientLocalRef.current = subtitleBackClient;
+
+        subtitleBackClient.activate();
+
+        return () => {
+            subtitleBackClient.deactivate().then(r => console.log("WebSocket deactivated"));
+        };
+    }, []);
+
+    useEffect(() => {
+        const sendSubtitles = () => {
+            if (clientLocalRef.current && subtitlesToSend) {
+                clientLocalRef.current.onStompError = (frame) => {
+                    console.log("Broker reported error: " + frame.headers['message']);
+                    console.log("Additional details: " + frame.body);
+                }
+                clientLocalRef.current.onDisconnect = () => {
+                    console.log("Disconnected from WebSocket");
+                }
+                // clientLocalRef.current.onConnect = () => {
+                    console.log("Sending subtitles:", subtitlesToSend);
+                    clientLocalRef.current.publish({
+                        destination: '/app/sendSubtitles',
+                        body: subtitlesToSend,
+                    });
+                // }
+                // clientLocalRef.current.activate();
+            }
+        };
+
+        sendSubtitles();
+
+    }, [subtitlesToSend]);
 
     useEffect(() => {
         restoreCursorPosition();
@@ -357,26 +422,38 @@ export default function HomePage() {
                         <Shortcuts/>
                     </div>
                 </div>
-
-                <div
-                    className="w-full border border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[200px] relative">
-                    <div className="p-4 space-y-4">
+                <div className={"block w-full max-h-[1200px]"}>
+                    <div
+                        className="border border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[200px] relative">
+                        <div className="p-4 space-y-4">
                         <span contentEditable={false}
                               className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
                             {subtitlesToSend}
                         </span>
-                        <span
-                            ref={subtitleSpanRef}
-                            contentEditable
-                            suppressContentEditableWarning={true}
-                            onInput={handleSubtitlesTextChange}
-                            onClick={handleOnClick}
-                            onBlur={() => saveCursorPosition}
-                            onFocus={restoreCursorPosition}
-                            onKeyDown={handleEnterKeyDown}
-                            className={`py-1 my-1 outline-none`}>
+                            <span
+                                ref={subtitleSpanRef}
+                                contentEditable
+                                suppressContentEditableWarning={true}
+                                onInput={handleSubtitlesTextChange}
+                                onClick={handleOnClick}
+                                onBlur={() => saveCursorPosition}
+                                onFocus={restoreCursorPosition}
+                                onKeyDown={handleEnterKeyDown}
+                                className={`py-1 my-1 outline-none`}>
                             {subtitles}
                         </span>
+                        </div>
+                    </div>
+                    <div
+                        className="border border-gray-400 m-2 rounded-md overflow-y-auto max-h-[00px] min-h-[200px] relative">
+                        <div key={"asd"} className="p-4 space-y-4">
+                        <span
+                            contentEditable
+                            suppressContentEditableWarning={true}
+                            className={`py-1 my-1 outline-none`}>
+                            {subtitlesFromBackend}
+                        </span>
+                        </div>
                     </div>
                 </div>
             </div>
