@@ -422,9 +422,9 @@ export default function HomePage() {
                         <Shortcuts/>
                     </div>
                 </div>
-                <div className={"block w-full max-h-[1200px]"}>
+                <div className={"block w-full h-full"}>
                     <div
-                        className="border border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[200px] relative">
+                        className="border w-full border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
                         <div className="p-4 space-y-4">
                         <span contentEditable={false}
                               className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
@@ -445,7 +445,7 @@ export default function HomePage() {
                         </div>
                     </div>
                     <div
-                        className="border border-gray-400 m-2 rounded-md overflow-y-auto max-h-[00px] min-h-[200px] relative">
+                        className="border w-full border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
                         <div key={"asd"} className="p-4 space-y-4">
                         <span
                             contentEditable
