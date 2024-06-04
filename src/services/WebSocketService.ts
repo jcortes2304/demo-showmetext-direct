@@ -20,7 +20,7 @@ class WebSocketService {
             reconnectDelay: 5000,
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
-            // webSocketFactory: () => new SockJS(config.serverUrl)
+            webSocketFactory: () => new SockJS(config.serverUrl.replace('wss', 'http'))
         });
     }
 

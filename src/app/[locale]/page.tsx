@@ -30,10 +30,12 @@ export default function HomePage() {
     const [serverMessage, setServerMessage] = useState<string>("");
     const subtitlesRef = useRef<string>("")
     const subtitlesToSendRef = useRef<string>("")
+    const subtitlesToSendRef1 = useRef<string>("")
     const subtitleSpanRef = useRef<HTMLSpanElement>(null);
     const cursorPositionRef = useRef(0);
     const clientLocalRef = useRef<Client>(new Client());
     const [subtitlesFromBackend, setSubtitlesFromBackend] = useState<string>("");
+    const [isConnected, setIsConnected] = useState(false);
 
     const performAction = (key: string) => {
         console.log('Acción ejecutada por combinación de teclas Ctrl + Alt + ' + key);
@@ -233,6 +235,7 @@ export default function HomePage() {
                     saveCursorPosition(wordsToSend.length);
                     setSubtitles(remainingWords);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
+                    subtitlesToSendRef1.current = wordsToSend
                     setShouldMark(true)
                 }
             }, amountOfTimeBetweenSends * 1000);
@@ -283,6 +286,7 @@ export default function HomePage() {
             };
         };
 
+
         setIsPlayingSubTitle(true)
         newClient.activate();
         return () => {
@@ -297,53 +301,48 @@ export default function HomePage() {
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
             onConnect: () => {
+                setIsConnected(true);
                 subtitleBackClient.subscribe('/topic/receiveSubtitle', (message) => {
-                    console.log("Receiving subtitles from backend: " + message.body);
-                    setSubtitlesFromBackend(message.body);
+                    console.log("Received message from backend: " + message.body);
+                    setSubtitlesFromBackend(prev => prev + "\n" + message.body);
                 });
             },
             onDisconnect: () => {
-                console.log("Disconnected from WebSocket");
+                console.error("Disconnected from WebSocket");
+                setIsConnected(false);
             },
             onStompError: (frame) => {
-                console.log("Broker reported error: " + frame.headers['message']);
-                console.log("Additional details: " + frame.body);
+                console.error("Broker reported error: " + frame.headers['message']);
+                console.error("Additional details: " + frame.body);
             }
         });
 
         clientLocalRef.current = subtitleBackClient;
-
         subtitleBackClient.activate();
 
         return () => {
             subtitleBackClient.deactivate().then(r => console.log("WebSocket deactivated"));
         };
+
     }, []);
 
     useEffect(() => {
         const sendSubtitles = () => {
-            if (clientLocalRef.current && subtitlesToSend) {
-                clientLocalRef.current.onStompError = (frame) => {
-                    console.log("Broker reported error: " + frame.headers['message']);
-                    console.log("Additional details: " + frame.body);
-                }
-                clientLocalRef.current.onDisconnect = () => {
-                    console.log("Disconnected from WebSocket");
-                }
-                // clientLocalRef.current.onConnect = () => {
-                    console.log("Sending subtitles:", subtitlesToSend);
+            if (isConnected && clientLocalRef.current && subtitlesToSendRef1.current) {
+                try {
                     clientLocalRef.current.publish({
                         destination: '/app/sendSubtitles',
-                        body: subtitlesToSend,
+                        body: subtitlesToSendRef1.current,
                     });
-                // }
-                // clientLocalRef.current.activate();
+                } catch (error) {
+                    console.error("Error sending subtitles:");
+                }
             }
         };
 
         sendSubtitles();
 
-    }, [subtitlesToSend]);
+    }, [subtitlesToSend, isConnected]);
 
     useEffect(() => {
         restoreCursorPosition();
@@ -446,13 +445,16 @@ export default function HomePage() {
                     </div>
                     <div
                         className="border w-full border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
-                        <div key={"asd"} className="p-4 space-y-4">
-                        <span
-                            contentEditable
-                            suppressContentEditableWarning={true}
-                            className={`py-1 my-1 outline-none`}>
-                            {subtitlesFromBackend}
-                        </span>
+                        <div className="p-4 space-y-4 text-center">
+                            {subtitlesToSend.split('\n').map((line, index) => (
+                                <span
+                                    key={index}
+                                    // contentEditable
+                                    // suppressContentEditableWarning={true}
+                                    className={`py-1 my-1 outline-none text-center text-wrap`}>
+                                    {line + "\n"}
+                                </span>
+                            ))}
                         </div>
                     </div>
                 </div>
