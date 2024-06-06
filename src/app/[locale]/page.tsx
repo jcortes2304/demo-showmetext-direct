@@ -3,11 +3,15 @@
 import {ArrowPathIcon, InformationCircleIcon, WifiIcon,} from "@heroicons/react/24/outline";
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {Client} from '@stomp/stompjs';
-import {SubtitleMessage} from "@/schemas/SubtitleMessageSchema";
+import {StandardResponse, Subtitle, SubtitleData, SubtitleMessage} from "@/schemas/SubtitleMessageSchema";
 import {useTranslations} from 'next-intl';
 import AudioPlayer from "@/components/AudioPlayer";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import Shortcuts from "@/components/Shortcuts";
+import SubtitlesProcessed from "@/components/SubtitlesProcessed";
+import {sendSubtitles} from "@/lib/requestSubtitle";
+import useWebSocket from "@/hooks/useWebSocket";
+
 
 export default function HomePage() {
     const t = useTranslations('HomePage');
@@ -27,14 +31,13 @@ export default function HomePage() {
     const [shouldMark, setShouldMark] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [automaticSendFlag, setAutomaticSendFlag] = useState<boolean>(true);
-    const [serverMessage, setServerMessage] = useState<string>("");
     const subtitlesRef = useRef<string>("")
     const subtitlesToSendRef = useRef<string>("")
-    const subtitlesToSendRef1 = useRef<string>("")
+    const subtitlesToSentToBackendRef = useRef<string>("")
     const subtitleSpanRef = useRef<HTMLSpanElement>(null);
     const cursorPositionRef = useRef(0);
     const clientLocalRef = useRef<Client>(new Client());
-    const [subtitlesFromBackend, setSubtitlesFromBackend] = useState<string>("");
+    const [subtitlesFromBackend, setSubtitlesFromBackend] = useState<SubtitleMessage>();
     const [isConnected, setIsConnected] = useState(false);
 
     const performAction = (key: string) => {
@@ -60,19 +63,17 @@ export default function HomePage() {
                     setAutomaticSendFlag(false);
                     performAction(event.key);
                     break;
-                case "e":
-
-                    performAction(event.key);
-                    break;
                 default:
                     break;
             }
         }
     };
 
-    const handleSendSubtitles = () => {
 
-    }
+    const handleSendSubtitles = useCallback(async (data: SubtitleData) => {
+        const response: Promise<StandardResponse> = sendSubtitles(data);
+        return await response;
+    }, []);
 
     const clearSentSubtitles = () => {
         const words = subtitlesToSendRef.current.split(/\s+/).filter(word => word !== "");
@@ -100,6 +101,11 @@ export default function HomePage() {
         const remainingWords = words.slice(position).join(" ");
         saveCursorPosition(wordsToSend.length);
         setSubtitles(remainingWords);
+        const subtitleToSend: SubtitleData = {
+            subtitle: wordsToSend
+        };
+        subtitlesToSentToBackendRef.current = wordsToSend
+        handleSendSubtitles(subtitleToSend).then();
         setSubtitlesToSend(prev => prev + " " + wordsToSend);
         setShouldMark(true)
     }
@@ -113,19 +119,6 @@ export default function HomePage() {
         }
         return position;
     }, []);
-
-    const getCursorPosition = useCallback(() => {
-        const selection = window.getSelection();
-        if (selection!.rangeCount > 0) {
-            const range = selection!.getRangeAt(0);
-            const preCaretRange = range.cloneRange();
-            preCaretRange.selectNodeContents(subtitleSpanRef.current!);
-            preCaretRange.setEnd(range.endContainer, range.endOffset);
-            return preCaretRange.toString().length;
-        }
-        return 0;
-    }, []);
-
 
     const saveCursorPosition = useCallback((amountOFCharactersToRest: number = 0) => {
         const selection = window.getSelection();
@@ -235,7 +228,7 @@ export default function HomePage() {
                     saveCursorPosition(wordsToSend.length);
                     setSubtitles(remainingWords);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
-                    subtitlesToSendRef1.current = wordsToSend
+                    subtitlesToSentToBackendRef.current = wordsToSend
                     setShouldMark(true)
                 }
             }, amountOfTimeBetweenSends * 1000);
@@ -294,17 +287,36 @@ export default function HomePage() {
         };
     }, []);
 
+    // useWebSocket({
+    //     url: `${BASE_URL}/publisher/ws`,
+    //     topic: `${BASE_TOPIC}/subtitles/0`,
+    //     callback: (subtitleMessage: SubtitleMessage) => {
+    //         if (!isEditing) {
+    //             const subtitlesArray = subtitleMessage.subtitles;
+    //             const newText = subtitlesArray
+    //                 .map(line => line.texts.map(text => text.characters).join(' '))
+    //                 .join('\n');
+    //             setSubtitles(prev => prev + '\n' + newText);
+    //         }
+    //         setIsPlayingSubTitle(true);
+    //     }
+    // });
+
     useEffect(() => {
         const subtitleBackClient = new Client({
-            brokerURL: "ws://localhost:8081/ws",
+            brokerURL: "ws://localhost:9081/ws",
             reconnectDelay: 5000,
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
             onConnect: () => {
                 setIsConnected(true);
                 subtitleBackClient.subscribe('/topic/receiveSubtitle', (message) => {
-                    console.log("Received message from backend: " + message.body);
-                    setSubtitlesFromBackend(prev => prev + "\n" + message.body);
+                    const subtitleMessage: SubtitleMessage = JSON.parse(message.body);
+                    if (subtitleMessage) {
+                        console.log(subtitleMessage.subtitles[0].texts);
+                        console.log("Received subtitles from backend: " + new Date().toLocaleTimeString());
+                        setSubtitlesFromBackend(subtitleMessage);
+                    }
                 });
             },
             onDisconnect: () => {
@@ -328,11 +340,11 @@ export default function HomePage() {
 
     useEffect(() => {
         const sendSubtitles = () => {
-            if (isConnected && clientLocalRef.current && subtitlesToSendRef1.current) {
+            if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current) {
                 try {
                     clientLocalRef.current.publish({
                         destination: '/app/sendSubtitles',
-                        body: subtitlesToSendRef1.current,
+                        body: subtitlesToSentToBackendRef.current,
                     });
                 } catch (error) {
                     console.error("Error sending subtitles:");
@@ -446,15 +458,17 @@ export default function HomePage() {
                     <div
                         className="border w-full border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
                         <div className="p-4 space-y-4 text-center">
-                            {subtitlesToSend.split('\n').map((line, index) => (
-                                <span
-                                    key={index}
-                                    // contentEditable
-                                    // suppressContentEditableWarning={true}
-                                    className={`py-1 my-1 outline-none text-center text-wrap`}>
-                                    {line + "\n"}
-                                </span>
-                            ))}
+                            <div className="relative h-full">
+                                {
+                                    subtitlesFromBackend &&
+                                    subtitlesFromBackend.subtitles.map((subtitle: Subtitle, index) => (
+                                        <SubtitlesProcessed
+                                            key={index}
+                                            subtitle={subtitle}
+                                            timeout={subtitlesFromBackend.timeout}
+                                        />
+                                    ))}
+                            </div>
                         </div>
                     </div>
                 </div>

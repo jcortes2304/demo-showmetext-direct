@@ -10,13 +10,24 @@ export interface TextAttributes {
     underlined: boolean
 }
 
+export interface SubtitleData {
+    subtitle: string;
+}
+
+export interface StandardResponse {
+    statusMessage: string;
+    statusCode: string;
+}
+
 export interface Text {
     attributes: TextAttributes
     "characters": string
 }
 
+type alignment = "left" | "center" | "right";
+
 export interface LineAttribute {
-    alignment: string,
+    alignment: alignment,
     doubleHeight: boolean,
     horizontalPosition: number,
     verticalPosition: number

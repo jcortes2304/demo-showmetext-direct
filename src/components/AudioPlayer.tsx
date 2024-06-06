@@ -11,8 +11,7 @@ import {
 } from "@heroicons/react/24/outline";
 import {useTranslations} from "next-intl";
 
-
-export default function AudioPlayer(){
+export default function AudioPlayer() {
     const t = useTranslations('HomePage.AudioPlayer');
 
     const [flushingTime, setFlushingTime] = useState<number>(0);
@@ -24,18 +23,16 @@ export default function AudioPlayer(){
     const AUDIO_URL = `${BASE_URL}/gateway/ws`;
     const BASE_TOPIC = "/topic/providers/RTVE/channels/Teledeporte";
 
-    const player = new PCMPlayer({
-        inputCodec: 'Int16',
-        channels: 1,
-        sampleRate: 44100,
-        flushTime: flushingTime,
-    });
+    let player: PCMPlayer;
 
-    // useEffect(() => {
-    //     if (typeof window !== 'undefined') {
-    //     }
-    // }, []);
-
+    if (typeof window !== 'undefined') {
+        player = new PCMPlayer({
+            inputCodec: 'Int16',
+            channels: 1,
+            sampleRate: 44100,
+            flushTime: flushingTime,
+        });
+    }
 
     const togglePlayAudio = () => {
         setIsPlayingAudio(!isPlayingAudio);
@@ -46,12 +43,12 @@ export default function AudioPlayer(){
         clientAudio?.deactivate().then(() => {
             console.log('Disconnected audio');
             setClientAudio(null);
-            player.destroy();
+            player?.destroy();
         })
     };
 
     useEffect(() => {
-        if (isPlayingAudio) {
+        if (isPlayingAudio && typeof window !== 'undefined') {
             const audioClient = new Client({
                 brokerURL: AUDIO_URL,
                 reconnectDelay: 5000,
@@ -60,12 +57,13 @@ export default function AudioPlayer(){
             });
 
             audioClient.onConnect = () => {
-                audioClient.subscribe(BASE_TOPIC, (message) => {
+                const subscription = audioClient.subscribe(BASE_TOPIC, (message) => {
                     if (message.binaryBody) {
                         const data = message.binaryBody;
                         player.feed(data);
                     }
                 });
+                setSubscriptionAudio(subscription);
             };
 
             audioClient.onDisconnect = () => {
@@ -81,7 +79,6 @@ export default function AudioPlayer(){
             setClientAudio(audioClient);
         }
     }, [isPlayingAudio]);
-
 
     return (
         <div>
