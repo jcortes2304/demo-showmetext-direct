@@ -127,6 +127,7 @@ export default function SubtitlesProcessed() {
                 const subscription = client.subscribe('/topic/receiveSubtitle', (message) => {
                     setIsConnected(true);
                     const subtitleMessage: SubtitleMessage = JSON.parse(message.body);
+                    console.log("Received subtitle message: ", subtitleMessage.subtitles)
                     if (subtitleMessage) {
                         setSendFlag(true);
                         setSubtitlesFromBackend(subtitleMessage);

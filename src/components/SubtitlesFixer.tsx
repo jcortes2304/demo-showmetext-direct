@@ -39,6 +39,7 @@ function SubtitlesFixer() {
     const cursorPositionRef = useRef(0);
     const [isConnected, setIsConnected] = useState<boolean>(false);
     const clientLocalRef = useRef<Client | null>(null);
+    const [subtitlesSent, setSubtitlesSent] = useState(false);
 
     const {
         activeSpan,
@@ -117,6 +118,9 @@ function SubtitlesFixer() {
         };
         subtitlesToSentToBackendRef.current = wordsToSend
         handleSendSubtitles(subtitleToSend).then();
+        setTimeout(() => {
+            setSubtitlesSent(true);
+        }, 0)
         setSubtitlesToSend(prev => prev + " " + wordsToSend);
         setShouldMark(true)
     }
@@ -215,6 +219,7 @@ function SubtitlesFixer() {
                     setSubtitles(remainingWords);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
                     subtitlesToSentToBackendRef.current = wordsToSend
+                    setSubtitlesSent(false);
                     setShouldMark(true)
                 }
             }, amountOfTimeBetweenSends * 1000);
@@ -230,6 +235,7 @@ function SubtitlesFixer() {
     useEffect(() => {
         subtitlesRef.current = subtitles
         subtitlesToSendRef.current = subtitlesToSend
+        setSubtitlesSent(false);
     }, [subtitles, subtitlesToSend]);
 
     useEffect(() => {
@@ -320,12 +326,13 @@ function SubtitlesFixer() {
 
     useEffect(() => {
         const sendSubtitles = () => {
-            if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current) {
+            if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current && !subtitlesSent) {
                 try {
                     clientLocalRef.current.publish({
                         destination: '/app/sendSubtitles',
                         body: subtitlesToSentToBackendRef.current,
                     });
+                    setSubtitlesSent(true);
                 } catch (error) {
                     console.error("Error sending subtitles:");
                 }
