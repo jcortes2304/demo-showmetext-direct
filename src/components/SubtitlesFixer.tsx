@@ -219,7 +219,6 @@ function SubtitlesFixer() {
                     setSubtitles(remainingWords);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
                     subtitlesToSentToBackendRef.current = wordsToSend
-                    setSubtitlesSent(false);
                     setShouldMark(true)
                 }
             }, amountOfTimeBetweenSends * 1000);
@@ -235,7 +234,6 @@ function SubtitlesFixer() {
     useEffect(() => {
         subtitlesRef.current = subtitles
         subtitlesToSendRef.current = subtitlesToSend
-        setSubtitlesSent(false);
     }, [subtitles, subtitlesToSend]);
 
     useEffect(() => {
@@ -320,19 +318,20 @@ function SubtitlesFixer() {
         clientLocalRef.current = client;
 
         return () => {
-            client.deactivate().then(() => console.log("WebSocket deactivated 1"));
+            client.deactivate().then();
         };
     }, []);
 
     useEffect(() => {
         const sendSubtitles = () => {
             if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current && !subtitlesSent) {
+            // if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current) {
                 try {
                     clientLocalRef.current.publish({
                         destination: '/app/sendSubtitles',
                         body: subtitlesToSentToBackendRef.current,
                     });
-                    setSubtitlesSent(true);
+                    console.log("se envia aqui tambien")
                 } catch (error) {
                     console.error("Error sending subtitles:");
                 }
@@ -340,6 +339,7 @@ function SubtitlesFixer() {
         };
 
         sendSubtitles();
+        // setSubtitlesSent(false);
 
     }, [subtitlesToSend, isConnected]);
 
