@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
-import { LineAttribute, Subtitle, SubtitleMessage, TextAttributes } from "@/schemas/SubtitleMessageSchema";
-import { Client } from "@stomp/stompjs";
+import React, {useEffect, useRef, useState} from "react";
+import {LineAttribute, Subtitle, SubtitleMessage, TextAttributes} from "@/schemas/SubtitleMessageSchema";
+import {Client} from "@stomp/stompjs";
 import parseDuration from "@/app/utils/utils";
 
 export default function SubtitlesResults() {
@@ -60,18 +60,19 @@ export default function SubtitlesResults() {
     });
 
     return (
-        <div>
-            <div className="flex border w-full justify-center items-center bg-black border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
-                <div className="p-4 space-y-4 text-center">
-                    <div className="relative h-full justify-center items-center" style={{ visibility: visible ? "visible" : "hidden" }}>
+        <div
+            className="flex border w-full justify-center items-center bg-black border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
+            <div className="p-4 space-y-4 text-center">
+                <div className="relative h-full justify-center items-center"
+                     style={{visibility: visible ? "visible" : "hidden"}}>
                         {subtitle?.subtitles.map((subtitle, index) => (
-                            <div key={index} style={handleLineAttributes(subtitle.lineAttributes!)}>
-                                <span className="py-1 my-1 outline-none" style={handleTextAttribute(subtitle.texts[0].attributes)}>
+                        <div key={index} style={handleLineAttributes(subtitle.lineAttributes!)}>
+                                <span className="py-1 my-1 outline-none"
+                                      style={handleTextAttribute(subtitle.texts[0].attributes)}>
                                     {subtitle.texts[0].characters}
                                 </span>
-                            </div>
-                        ))}
-                    </div>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>

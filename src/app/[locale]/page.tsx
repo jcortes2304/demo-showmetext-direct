@@ -16,9 +16,16 @@ export default function HomePage() {
             <div className="mx-auto p-4 flex flex-col md:flex-row">
                 <ControlPanel/>
                 <div className={"block w-full h-full"}>
-                    <SubtitlesFixer/>
-                    <SubtitlesProcessed/>
-                    <SubtitlesResults/>
+                    <div className={"mx-2 mb-10"}>
+                        <SubtitlesFixer/>
+                    </div>
+                    <div className={"mx-2 my-10"}>
+                        <SubtitlesProcessed/>
+                    </div>
+                    <div className={"mx-2 my-10"}>
+                        <SubtitlesResults/>
+                    </div>
+
                 </div>
             </div>
         </div>

@@ -20,7 +20,7 @@ const CountDown: React.FC<CountDownProps> = ({ timeout, pause }) => {
 
             return () => clearTimeout(timer);
         }
-    }, [timeLeft, pause]);
+    }, [timeLeft, pause, timeout]);
 
     const formatTime = (seconds: number) => {
         const minutes = Math.floor(seconds / 60);
@@ -30,7 +30,7 @@ const CountDown: React.FC<CountDownProps> = ({ timeout, pause }) => {
 
     return (
         <div className="flex items-center justify-center h-full">
-            <div className="bg-blue-500 text-white font-bold rounded-lg p-4 text-2xl shadow-md">
+            <div className="bg-red-500 text-white font-bold rounded-box p-1 text-1xl shadow-md">
                 {formatTime(timeLeft)}
             </div>
         </div>

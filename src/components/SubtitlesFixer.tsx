@@ -4,6 +4,7 @@ import {StandardResponse, SubtitleData, SubtitleMessage} from "@/schemas/Subtitl
 import {sendSubtitles} from "@/lib/requestSubtitle";
 import useAppStore from "@/store/store";
 import {SpanType} from "@/schemas/UtilsSchemas";
+import CountDown from "@/components/CountDown";
 
 
 function SubtitlesFixer() {
@@ -39,7 +40,10 @@ function SubtitlesFixer() {
     const cursorPositionRef = useRef(0);
     const [isConnected, setIsConnected] = useState<boolean>(false);
     const clientLocalRef = useRef<Client | null>(null);
-    const [subtitlesSent, setSubtitlesSent] = useState(false);
+    const [subtitlesSentWithRestController, setSubtitlesSentWithRestController] = useState(false);
+    const [timeForCountDown, setTimeForCountDown] = useState<number>(0)
+    const [showCountDown, setShowCountDown] = useState<boolean>(false);
+    const [restartCountDown, setRestartCountDown] = useState<boolean>(false);
 
     const {
         activeSpan,
@@ -118,9 +122,7 @@ function SubtitlesFixer() {
         };
         subtitlesToSentToBackendRef.current = wordsToSend
         handleSendSubtitles(subtitleToSend).then();
-        setTimeout(() => {
-            setSubtitlesSent(true);
-        }, 0)
+        setSubtitlesSentWithRestController(true);
         setSubtitlesToSend(prev => prev + " " + wordsToSend);
         setShouldMark(true)
     }
@@ -183,6 +185,9 @@ function SubtitlesFixer() {
         setEnableMarking(false)
         setActiveSpan(SpanType.FIXER_SPAN)
         saveCursorPosition();
+        setTimeForCountDown(waitingTimeAfterModification)
+        setShowCountDown(true)
+        setRestartCountDown(true);
     };
 
 
@@ -217,6 +222,7 @@ function SubtitlesFixer() {
                     let remainingWords = words.slice(amountOfWordsToSend).join(" ");
                     saveCursorPosition(wordsToSend.length);
                     setSubtitles(remainingWords);
+                    setSubtitlesSentWithRestController(false);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
                     subtitlesToSentToBackendRef.current = wordsToSend
                     setShouldMark(true)
@@ -240,6 +246,7 @@ function SubtitlesFixer() {
         const timer = setTimeout(() => {
             setEnableMarking(true)
             setIsEditing(false)
+            setRestartCountDown(true); // Agregar esta línea
         }, waitingTimeAfterModification * 1000);
 
         return () => clearTimeout(timer);
@@ -324,14 +331,15 @@ function SubtitlesFixer() {
 
     useEffect(() => {
         const sendSubtitles = () => {
-            if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current && !subtitlesSent) {
-            // if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current) {
+            if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current && !subtitlesSentWithRestController) {
                 try {
+                    console.log("Send varaible " + subtitlesSentWithRestController)
+                    console.log("se envia aqui tambien")
+
                     clientLocalRef.current.publish({
                         destination: '/app/sendSubtitles',
                         body: subtitlesToSentToBackendRef.current,
                     });
-                    console.log("se envia aqui tambien")
                 } catch (error) {
                     console.error("Error sending subtitles:");
                 }
@@ -339,34 +347,58 @@ function SubtitlesFixer() {
         };
 
         sendSubtitles();
-        // setSubtitlesSent(false);
 
     }, [subtitlesToSend, isConnected]);
 
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setShowCountDown(false)
+            setRestartCountDown(false);
+        }, (timeForCountDown + 1) * 1000)
+
+        return () => clearTimeout(timer)
+    }, [showCountDown, timeForCountDown, restartCountDown]);
+
+
     return (
-        <div
-            className="border w-full border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
-            <div className="p-4 space-y-4">
-        <span contentEditable={false}
-              className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
-             {subtitlesToSend}
-        </span>
-                <span
-                    id={"subtitleFixerSpan"}
-                    ref={subtitleSpanRef}
-                    contentEditable
-                    suppressContentEditableWarning={true}
-                    onInput={handleSubtitlesTextChange}
-                    onClick={handleOnClick}
-                    onBlur={() => {
-                        setActiveSpan(SpanType.FIXER_SPAN)
-                        saveCursorPosition()
-                    }}
-                    onFocus={restoreCursorPosition}
-                    onKeyDown={handleEnterKeyDown}
-                    className={`py-1 my-1 outline-none`}>
-                    {subtitles}
-                    </span>
+        <div>
+            <div
+                className="border w-full border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
+                <div className="p-4 space-y-4 text-justify">
+      <span contentEditable={false}
+            className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
+        {subtitlesToSend}
+      </span>
+                    <span
+                        id={"subtitleFixerSpan"}
+                        ref={subtitleSpanRef}
+                        contentEditable
+                        suppressContentEditableWarning={true}
+                        onInput={handleSubtitlesTextChange}
+                        onClick={handleOnClick}
+                        onBlur={() => {
+                            setActiveSpan(SpanType.FIXER_SPAN)
+                            saveCursorPosition()
+                        }}
+                        onFocus={restoreCursorPosition}
+                        onKeyDown={handleEnterKeyDown}
+                        className={`py-1 my-1 outline-none`}>
+        {subtitles}
+      </span>
+                </div>
+            </div>
+            <div className="flex justify-end items-center mt-2">
+                <div className="mr-1">
+                    {showCountDown && (
+                        <CountDown timeout={timeForCountDown} pause={false}/>
+                    )}
+                </div>
+                {/*<button className="px-4 py-2 bg-blue-500 text-white rounded mr-2">*/}
+                {/*    Button 1*/}
+                {/*</button>*/}
+                {/*<button className="px-4 py-2 bg-blue-500 text-white rounded">*/}
+                {/*    Button 2*/}
+                {/*</button>*/}
             </div>
         </div>
     )
@@ -374,7 +406,6 @@ function SubtitlesFixer() {
 
 
 export default SubtitlesFixer;
-
 
 
 // Revisar luego
