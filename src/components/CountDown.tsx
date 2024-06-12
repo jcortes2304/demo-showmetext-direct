@@ -3,9 +3,10 @@ import React, { useEffect, useState } from 'react';
 interface CountDownProps {
     timeout: number;
     pause: boolean;
+    onTimeout: () => void;
 }
 
-const CountDown: React.FC<CountDownProps> = ({ timeout, pause }) => {
+const CountDown: React.FC<CountDownProps> = ({ timeout, pause, onTimeout }) => {
     const [timeLeft, setTimeLeft] = useState(timeout);
 
     useEffect(() => {
@@ -19,8 +20,10 @@ const CountDown: React.FC<CountDownProps> = ({ timeout, pause }) => {
             }, 1000);
 
             return () => clearTimeout(timer);
+        } else {
+            onTimeout();
         }
-    }, [timeLeft, pause, timeout]);
+    }, [timeLeft, pause, onTimeout]);
 
     const formatTime = (seconds: number) => {
         const minutes = Math.floor(seconds / 60);

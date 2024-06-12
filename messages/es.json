@@ -14,6 +14,13 @@
     "waitingTimeAfterModification": "Tiempo de Espera Después de Modificación",
     "remainingWordsAfterCleaned": "Palabras Restantes Después de Limpieza",
     "keyboardShortcuts": "Atajos de Teclado",
+    "SubtitlesProcessed": {
+      "subtitlesProcessed": "Subtítulos Procesados",
+      "wordsSent": "Palabras Enviadas",
+      "wordsRemaining": "Palabras Restantes",
+      "wordsReceived": "Palabras Recibidas",
+      "wordsProcessed": "Palabras Procesadas"
+    },
     "Shortcuts": {
       "sendText": "Enviar texto hasta posición del cursor",
       "clearText": "Limpiar texto enviado",

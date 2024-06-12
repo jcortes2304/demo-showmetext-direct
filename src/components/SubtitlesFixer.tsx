@@ -42,7 +42,7 @@ function SubtitlesFixer() {
     const clientLocalRef = useRef<Client | null>(null);
     const [subtitlesSentWithRestController, setSubtitlesSentWithRestController] = useState(false);
     const [timeForCountDown, setTimeForCountDown] = useState<number>(0)
-    const [showCountDown, setShowCountDown] = useState<boolean>(false);
+    // const [showCountDown, setShowCountDown] = useState<boolean>(false);
     const [restartCountDown, setRestartCountDown] = useState<boolean>(false);
 
     const {
@@ -54,7 +54,7 @@ function SubtitlesFixer() {
     }));
 
     const performAction = (key: string) => {
-        console.log('Acción ejecutada por combinación de teclas Ctrl + Alt + ' + key);
+        // console.log('Acción ejecutada por combinación de teclas Ctrl + Alt + ' + key);
     };
 
     const handleKeyPress = (event: KeyboardEvent) => {
@@ -186,7 +186,7 @@ function SubtitlesFixer() {
         setActiveSpan(SpanType.FIXER_SPAN)
         saveCursorPosition();
         setTimeForCountDown(waitingTimeAfterModification)
-        setShowCountDown(true)
+        // setShowCountDown(true)
         setRestartCountDown(true);
     };
 
@@ -233,7 +233,7 @@ function SubtitlesFixer() {
                 clearTimeout(intervalId);
             };
         } else {
-            console.log("Automatic send is disabled at asd: ", new Date().toLocaleTimeString())
+            // console.log("Automatic send is disabled at asd: ", new Date().toLocaleTimeString())
         }
     }, [automaticSendFlag, isEditing, amountOfTimeBetweenSends, amountOfWordsToSend, subtitlesHaveWords, enabledMarking]);
 
@@ -333,9 +333,6 @@ function SubtitlesFixer() {
         const sendSubtitles = () => {
             if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current && !subtitlesSentWithRestController) {
                 try {
-                    console.log("Send varaible " + subtitlesSentWithRestController)
-                    console.log("se envia aqui tambien")
-
                     clientLocalRef.current.publish({
                         destination: '/app/sendSubtitles',
                         body: subtitlesToSentToBackendRef.current,
@@ -350,14 +347,14 @@ function SubtitlesFixer() {
 
     }, [subtitlesToSend, isConnected]);
 
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setShowCountDown(false)
-            setRestartCountDown(false);
-        }, (timeForCountDown + 1) * 1000)
-
-        return () => clearTimeout(timer)
-    }, [showCountDown, timeForCountDown, restartCountDown]);
+    // useEffect(() => {
+    //     const timer = setInterval(() => {
+    //         setShowCountDown(false)
+    //         setRestartCountDown(false);
+    //     }, (timeForCountDown + 1) * 1000)
+    //
+    //     return () => clearTimeout(timer)
+    // }, [showCountDown, timeForCountDown, restartCountDown]);
 
 
     return (
@@ -388,17 +385,11 @@ function SubtitlesFixer() {
                 </div>
             </div>
             <div className="flex justify-end items-center mt-2">
-                <div className="mr-1">
-                    {showCountDown && (
-                        <CountDown timeout={timeForCountDown} pause={false}/>
-                    )}
-                </div>
-                {/*<button className="px-4 py-2 bg-blue-500 text-white rounded mr-2">*/}
-                {/*    Button 1*/}
-                {/*</button>*/}
-                {/*<button className="px-4 py-2 bg-blue-500 text-white rounded">*/}
-                {/*    Button 2*/}
-                {/*</button>*/}
+                {/*<div className="mr-1">*/}
+                {/*    {showCountDown && (*/}
+                {/*        <CountDown timeout={timeForCountDown} pause={false}/>*/}
+                {/*    )}*/}
+                {/*</div>*/}
             </div>
         </div>
     )
