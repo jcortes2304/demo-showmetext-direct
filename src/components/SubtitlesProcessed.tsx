@@ -15,6 +15,10 @@ import {useTranslations} from "next-intl";
 
 export default function SubtitlesProcessed() {
 
+    const { waitingTimeInScreenAfterSend, setWaitingTimeInScreenAfterSend } = useAppStore(
+        (state) => state
+    );
+
     const textSubtitleRef = useRef<HTMLSpanElement>(null);
     const [subtitleMessage, setSubtitleMessage] = useState<SubtitleMessage | null>(null);
     const clientProcessedRef = useRef<Client | null>(null);
@@ -22,15 +26,13 @@ export default function SubtitlesProcessed() {
     const subtitlesMessagesQueueRef = useRef<SubtitleMessage[]>(subtitlesMessagesQueue);
     const [currentIndex, setCurrentIndex] = useState<number>(0);
     const [showCountDown, setShowCountDown] = useState<boolean>(false);
-    const [timeForCountDown, setTimeForCountDown] = useState<number[]>([]);
+    const [timeForCountDown, setTimeForCountDown] = useState<number>(waitingTimeInScreenAfterSend);
     const [automaticSendFlag, setAutomaticSendFlag] = useState<boolean>(true);
     const t = useTranslations('HomePage.SubtitlesProcessed');
 
 
 
-    const { waitingTimeInScreenAfterSend, setWaitingTimeInScreenAfterSend } = useAppStore(
-        (state) => state
-    );
+
 
     const handleEnterKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>) => {
         if (event.key === "Enter" || event.key === "Tab") {
@@ -48,32 +50,29 @@ export default function SubtitlesProcessed() {
             });
             setSubtitlesMessagesQueue((prevQueue) => {
                 const updatedQueue = [...prevQueue];
-                updatedQueue.splice(0, 1);
+                updatedQueue.shift();
                 return updatedQueue;
             });
-            setTimeForCountDown((prevTimes) => {
-                const updatedTimes = [...prevTimes];
-                updatedTimes[0] = waitingTimeInScreenAfterSend;
-                return updatedTimes;
-            });
+            setCurrentIndex(0);
+            setTimeForCountDown(waitingTimeInScreenAfterSend);
         }
     };
 
-    const handleNextSubtitle = () => {
-        if (currentIndex < subtitlesMessagesQueue.length - 1) {
-            const nextIndex = currentIndex + 1;
-            setCurrentIndex(nextIndex);
-            setSubtitleMessage(subtitlesMessagesQueue[nextIndex]);
-        }
-    };
+    // const handleNextSubtitle = () => {
+    //     if (currentIndex < subtitlesMessagesQueue.length - 1) {
+    //         const nextIndex = currentIndex + 1;
+    //         setCurrentIndex(nextIndex);
+    //         setSubtitleMessage(subtitlesMessagesQueue[nextIndex]);
+    //     }
+    // };
 
-    const handlePreviewSubtitle = () => {
-        if (currentIndex > 0) {
-            const prevIndex = currentIndex - 1;
-            setCurrentIndex(prevIndex);
-            setSubtitleMessage(subtitlesMessagesQueue[prevIndex]);
-        }
-    };
+    // const handlePreviewSubtitle = () => {
+    //     if (currentIndex > 0) {
+    //         const prevIndex = currentIndex - 1;
+    //         setCurrentIndex(prevIndex);
+    //         setSubtitleMessage(subtitlesMessagesQueue[prevIndex]);
+    //     }
+    // };
 
     const handleSendUpToCurrent = () => {
         for (let i = 0; i <= currentIndex; i++) {
@@ -193,7 +192,7 @@ export default function SubtitlesProcessed() {
                         setSubtitleMessage(subtitlesMessagesQueueRef.current[0]);
                     }
                     setShowCountDown(true);
-                    setTimeForCountDown((prevTimes) => [...prevTimes, waitingTimeInScreenAfterSend]);
+                    setTimeForCountDown(waitingTimeInScreenAfterSend);
                 });
             },
             onDisconnect: () => {
@@ -212,28 +211,6 @@ export default function SubtitlesProcessed() {
             client.deactivate().then();
         };
     }, [waitingTimeInScreenAfterSend]);
-
-    // useEffect(() => {
-    //     if (automaticSendFlag && clientProcessedRef.current){
-    //         setTimeout(() => {
-    //             if (subtitlesMessagesQueueRef.current.length > 0) {
-    //                 const subtitle = subtitlesMessagesQueueRef.current[0];
-    //                 clientProcessedRef.current?.publish({
-    //                     destination: "/app/sendSubtitlesResults",
-    //                     body: JSON.stringify(subtitle.subtitles),
-    //                 });
-    //                 setSubtitlesMessagesQueue((prevQueue) => {
-    //                     const updatedQueue = [...prevQueue];
-    //                     updatedQueue.shift();
-    //                     return updatedQueue;
-    //                 });
-    //                 setShowCountDown(false);
-    //                 setCurrentIndex((prevIndex) => Math.max(prevIndex - 1, 0));
-    //             }
-    //         }, waitingTimeInScreenAfterSend * 1000);
-    //     }
-    // }, [automaticSendFlag]);
-
 
     return (
         <div>
@@ -263,7 +240,7 @@ export default function SubtitlesProcessed() {
                 </div>
             </div>
             <div className="flex justify-center items-center mt-4">
-                <div className="flex-initial items-center space-x-2">
+                <div className="flex justify-center items-center space-x-2">
                     <div className={"block justify-center text-center my-1"}>
 
                         <span className={"mb-4 text-center justify-center"}>Subtítulos en cola</span>
@@ -291,7 +268,7 @@ export default function SubtitlesProcessed() {
                             <div className="ml-4">
                                 {subtitlesMessagesQueue.length > 0 && (
                                     <CountDown
-                                        timeout={timeForCountDown[0]}
+                                        timeout={timeForCountDown}
                                         pause={!automaticSendFlag}
                                         onTimeout={handleTimeout}
                                     />
@@ -302,24 +279,24 @@ export default function SubtitlesProcessed() {
                 </div>
             </div>
             <div className="flex justify-center space-x-2 mt-4">
-                <div className="tooltip" data-tip={"Atrás"}>
-                    <button
-                        className={`px-4 py-2 text-white rounded-md ${currentIndex === 0 ? 'bg-gray-500' : 'bg-blue-500'}`}
-                        onClick={handlePreviewSubtitle}
-                        disabled={currentIndex === 0}
-                    >
-                        <ChevronLeftIcon className="size-5"/>
-                    </button>
-                </div>
-                <div className="tooltip" data-tip={"Siguiente"}>
-                    <button
-                        className={`px-4 py-2 text-white rounded-md ${currentIndex === subtitlesMessagesQueue.length - 1 || subtitlesMessagesQueue.length <= 1 ? 'bg-gray-500' : ' bg-blue-500'}`}
-                        onClick={handleNextSubtitle}
-                        disabled={currentIndex === subtitlesMessagesQueue.length - 1 || subtitlesMessagesQueue.length <= 1}
-                    >
-                        <ChevronRightIcon className="size-5"/>
-                    </button>
-                </div>
+                {/*<div className="tooltip" data-tip={"Atrás"}>*/}
+                {/*    <button*/}
+                {/*        className={`px-4 py-2 text-white rounded-md ${currentIndex === 0 ? 'bg-gray-500' : 'bg-blue-500'}`}*/}
+                {/*        onClick={handlePreviewSubtitle}*/}
+                {/*        disabled={currentIndex === 0}*/}
+                {/*    >*/}
+                {/*        <ChevronLeftIcon className="size-5"/>*/}
+                {/*    </button>*/}
+                {/*</div>*/}
+                {/*<div className="tooltip" data-tip={"Siguiente"}>*/}
+                {/*    <button*/}
+                {/*        className={`px-4 py-2 text-white rounded-md ${currentIndex === subtitlesMessagesQueue.length - 1 || subtitlesMessagesQueue.length <= 1 ? 'bg-gray-500' : ' bg-blue-500'}`}*/}
+                {/*        onClick={handleNextSubtitle}*/}
+                {/*        disabled={currentIndex === subtitlesMessagesQueue.length - 1 || subtitlesMessagesQueue.length <= 1}*/}
+                {/*    >*/}
+                {/*        <ChevronRightIcon className="size-5"/>*/}
+                {/*    </button>*/}
+                {/*</div>*/}
                 <div className="tooltip" data-tip={"Enviar hasta actual"}>
                     <button
                         className={`px-4 py-2 text-white rounded-md ${subtitlesMessagesQueue.length === 0 ? 'bg-gray-500' : 'bg-blue-500'}`}

@@ -26,7 +26,7 @@ const useAppStore = create<StoreState>((set) => ({
     amountOfTimeBetweenSends: 4,
     waitingTimeAfterModification: 3,
     amountOfWordsRemainAfterCleaned: 3,
-    waitingTimeInScreenAfterSend: 10,
+    waitingTimeInScreenAfterSend: 4,
     activeSpan: SpanType.FIXER_SPAN,
 
     setIsPlayingSubTitle: (value) => set({ isPlayingSubTitle: value }),

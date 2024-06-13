@@ -7,23 +7,25 @@ interface CountDownProps {
 }
 
 const CountDown: React.FC<CountDownProps> = ({ timeout, pause, onTimeout }) => {
-    const [timeLeft, setTimeLeft] = useState(timeout);
+    const [time, setTime] = useState(timeout);
 
     useEffect(() => {
-        if (pause) {
-            return;
-        }
+        setTime(timeout);
+    }, [timeout]);
 
-        if (timeLeft > 0) {
-            const timer = setTimeout(() => {
-                setTimeLeft(timeLeft - 1);
-            }, 1000);
-
-            return () => clearTimeout(timer);
-        } else {
-            onTimeout();
+    useEffect(() => {
+        if (!pause) {
+            if (time > 0) {
+                const timer = setTimeout(() => {
+                    setTime(time - 1);
+                }, 1000);
+                return () => clearTimeout(timer);
+            } else {
+                onTimeout();
+                setTime(timeout);
+            }
         }
-    }, [timeLeft, pause, onTimeout]);
+    }, [time, pause, onTimeout, timeout]);
 
     const formatTime = (seconds: number) => {
         const minutes = Math.floor(seconds / 60);
@@ -34,7 +36,7 @@ const CountDown: React.FC<CountDownProps> = ({ timeout, pause, onTimeout }) => {
     return (
         <div className="flex items-center justify-center h-full">
             <div className="bg-red-500 text-white font-bold rounded-box p-1 text-1xl shadow-md">
-                {formatTime(timeLeft)}
+                {formatTime(time)}
             </div>
         </div>
     );
