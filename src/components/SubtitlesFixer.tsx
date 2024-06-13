@@ -17,45 +17,63 @@ function SubtitlesFixer() {
         amountOfTimeBetweenSends,
         waitingTimeAfterModification,
         amountOfWordsRemainAfterCleaned,
-        setIsPlayingSubTitle
+        isPlayingSubTitle,
+        setIsPlayingSubTitle,
+        activeSpan,
+        setActiveSpan
     } = useAppStore(state => ({
         amountOfWordsToSend: state.amountOfWordsToSend,
         amountOfTimeBetweenSends: state.amountOfTimeBetweenSends,
         waitingTimeAfterModification: state.waitingTimeAfterModification,
         amountOfWordsRemainAfterCleaned: state.amountOfWordsRemainAfterCleaned,
-        setIsPlayingSubTitle: state.setIsPlayingSubTitle
+        activeSpan: state.activeSpan,
+        isPlayingSubTitle: state.isPlayingSubTitle,
+        setIsPlayingSubTitle: state.setIsPlayingSubTitle,
+        setActiveSpan: state.setActiveSpan
     }));
 
-    const [subtitles, setSubtitles] = useState("");
-    const [subtitlesToSend, setSubtitlesToSend] = useState("");
+    // Boolean states
     const [subtitlesHaveWords, setSubtitlesHaveWords] = useState<boolean>(false);
     const [enabledMarking, setEnableMarking] = useState<boolean>(true);
     const [shouldMark, setShouldMark] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [automaticSendFlag, setAutomaticSendFlag] = useState<boolean>(true);
+    const [subtitlesSentWithRestController, setSubtitlesSentWithRestController] = useState<boolean>(false);
+    const [isConnected, setIsConnected] = useState<boolean>(false);
+
+    // String states
+    const [subtitles, setSubtitles] = useState<string>("");
+    const [subtitlesToSend, setSubtitlesToSend] = useState<string>("");
+
+    // Number states
+    const [timeForCountDown, setTimeForCountDown] = useState<number>(0)
+    const [restartCountDown, setRestartCountDown] = useState<boolean>(false);
+
+    // WS Client states
+    const [clientSubtitlesDirect, setClientSubtitlesDirect] = useState<Client | null>(null);
+
+    // Refs
     const subtitlesRef = useRef<string>("")
     const subtitlesToSendRef = useRef<string>("")
     const subtitlesToSentToBackendRef = useRef<string>("")
     const subtitleSpanRef = useRef<HTMLSpanElement>(null);
     const cursorPositionRef = useRef(0);
-    const [isConnected, setIsConnected] = useState<boolean>(false);
     const clientLocalRef = useRef<Client | null>(null);
-    const [subtitlesSentWithRestController, setSubtitlesSentWithRestController] = useState(false);
-    const [timeForCountDown, setTimeForCountDown] = useState<number>(0)
-    // const [showCountDown, setShowCountDown] = useState<boolean>(false);
-    const [restartCountDown, setRestartCountDown] = useState<boolean>(false);
-
-    const {
-        activeSpan,
-        setActiveSpan
-    } = useAppStore(state => ({
-        activeSpan: state.activeSpan,
-        setActiveSpan: state.setActiveSpan
-    }));
 
     const performAction = (key: string) => {
         // console.log('Acción ejecutada por combinación de teclas Ctrl + Alt + ' + key);
     };
+
+
+    useEffect(() => {
+        if (!isPlayingSubTitle){
+            clientSubtitlesDirect?.deactivate().then(() => {
+                setClientSubtitlesDirect(null);
+            })
+            console.log('Disconnected subtitle');
+        }
+
+    }, [isPlayingSubTitle]);
 
     const handleKeyPress = (event: KeyboardEvent) => {
         if (event.altKey && event.ctrlKey) {
@@ -138,46 +156,50 @@ function SubtitlesFixer() {
     }, []);
 
     const saveCursorPosition = useCallback((amountOFCharactersToRest: number = 0) => {
-        const selection = window.getSelection();
-        if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
-            const range = selection!.getRangeAt(0);
-            const preCaretRange = range.cloneRange();
-            preCaretRange.selectNodeContents(subtitleSpanRef.current!);
-            preCaretRange.setEnd(range.startContainer, range.startOffset);
-            if (preCaretRange.toString().length - amountOFCharactersToRest > 0) {
-                cursorPositionRef.current = preCaretRange.toString().length - amountOFCharactersToRest;
-            } else {
-                cursorPositionRef.current = 0;
+        if (activeSpan === SpanType.FIXER_SPAN) {
+            const selection = window.getSelection();
+            if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
+                const range = selection!.getRangeAt(0);
+                const preCaretRange = range.cloneRange();
+                preCaretRange.selectNodeContents(subtitleSpanRef.current!);
+                preCaretRange.setEnd(range.startContainer, range.startOffset);
+                if (preCaretRange.toString().length - amountOFCharactersToRest > 0) {
+                    cursorPositionRef.current = preCaretRange.toString().length - amountOFCharactersToRest;
+                } else {
+                    cursorPositionRef.current = 0;
+                }
             }
         }
+
     }, []);
 
     const restoreCursorPosition = useCallback(() => {
+        if (activeSpan === SpanType.FIXER_SPAN) {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
+                range.setStart(subtitleSpanRef.current!, 0);
+                range.collapse(true);
+                let pos = 0;
 
-        const selection = window.getSelection();
-        const range = document.createRange();
-        if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
-            range.setStart(subtitleSpanRef.current!, 0);
-            range.collapse(true);
-            let pos = 0;
+                const nodeIterator = document.createNodeIterator(subtitleSpanRef.current!, NodeFilter.SHOW_TEXT, null);
+                let node: Node | null;
 
-            const nodeIterator = document.createNodeIterator(subtitleSpanRef.current!, NodeFilter.SHOW_TEXT, null);
-            let node: Node | null;
-
-            while ((node = nodeIterator.nextNode()) !== null) {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    const textNode = node as Text;
-                    const nextPos = pos + textNode.length;
-                    if (cursorPositionRef.current <= nextPos) {
-                        range.setStart(textNode, cursorPositionRef.current - pos);
-                        range.collapse(true);
-                        break;
+                while ((node = nodeIterator.nextNode()) !== null) {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        const textNode = node as Text;
+                        const nextPos = pos + textNode.length;
+                        if (cursorPositionRef.current <= nextPos) {
+                            range.setStart(textNode, cursorPositionRef.current - pos);
+                            range.collapse(true);
+                            break;
+                        }
+                        pos = nextPos;
                     }
-                    pos = nextPos;
                 }
+                selection!.removeAllRanges();
+                selection!.addRange(range);
             }
-            selection!.removeAllRanges();
-            selection!.addRange(range);
         }
     }, []);
 
@@ -299,35 +321,39 @@ function SubtitlesFixer() {
     }, []);
 
     useEffect(() => {
-        const client = new Client({
-            brokerURL: "ws://localhost:9081/ws",
-            reconnectDelay: 5000,
-            heartbeatIncoming: 4000,
-            heartbeatOutgoing: 4000,
-        });
+        if (isPlayingSubTitle){
+            const client = new Client({
+                brokerURL: "ws://localhost:9081/ws",
+                reconnectDelay: 5000,
+                heartbeatIncoming: 4000,
+                heartbeatOutgoing: 4000,
+            });
 
-        client.onConnect = () => {
-            setIsConnected(true)
-        };
+            client.onConnect = () => {
+                setIsConnected(true)
+            };
 
-        client.onDisconnect = () => {
-            setIsConnected(false)
-            console.error("Disconnected from WebSocket server");
-        };
+            client.onDisconnect = () => {
+                setIsConnected(false)
+                console.error("Disconnected from WebSocket server");
+            };
 
-        client.onStompError = (frame) => {
-            setIsConnected(false)
-            console.error("Broker reported error: " + frame.headers['message']);
-            console.error("Additional details: " + frame.body);
-        };
+            client.onStompError = (frame) => {
+                setIsConnected(false)
+                console.error("Broker reported error: " + frame.headers['message']);
+                console.error("Additional details: " + frame.body);
+            };
 
-        client.activate();
-        clientLocalRef.current = client;
+            client.activate();
+            clientLocalRef.current = client;
+            setClientSubtitlesDirect(client);
 
-        return () => {
-            client.deactivate().then();
-        };
-    }, []);
+            return () => {
+                client.deactivate().then();
+            };
+        }
+
+    }, [isPlayingSubTitle]);
 
     useEffect(() => {
         const sendSubtitles = () => {
@@ -373,10 +399,7 @@ function SubtitlesFixer() {
                         suppressContentEditableWarning={true}
                         onInput={handleSubtitlesTextChange}
                         onClick={handleOnClick}
-                        onBlur={() => {
-                            setActiveSpan(SpanType.FIXER_SPAN)
-                            saveCursorPosition()
-                        }}
+                        onBlur={() => saveCursorPosition()}
                         onFocus={restoreCursorPosition}
                         onKeyDown={handleEnterKeyDown}
                         className={`py-1 my-1 outline-none`}>

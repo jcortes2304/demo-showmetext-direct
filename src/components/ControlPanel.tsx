@@ -1,4 +1,4 @@
-import {ArrowPathIcon, InformationCircleIcon, WifiIcon} from "@heroicons/react/24/outline";
+import {ArrowPathIcon, InformationCircleIcon, PlayIcon, StopIcon, WifiIcon} from "@heroicons/react/24/outline";
 import AudioPlayer from "@/components/AudioPlayer";
 import Shortcuts from "@/components/Shortcuts";
 import React from "react";
@@ -15,6 +15,7 @@ export default function ControlPanel() {
         waitingTimeAfterModification,
         amountOfWordsRemainAfterCleaned,
         isPlayingSubTitle,
+        setIsPlayingSubTitle,
         setAmountOfWordsToSend,
         setAmountOfWordsRemainAfterCleaned,
         setAmountOfTimeBetweenSends,
@@ -26,6 +27,7 @@ export default function ControlPanel() {
         setAmountOfTimeBetweenSends: state.setAmountOfTimeBetweenSends,
         setWaitingTimeAfterModification: state.setWaitingTimeAfterModification,
         amountOfWordsToSend: state.amountOfWordsToSend,
+        setIsPlayingSubTitle: state.setIsPlayingSubTitle,
         amountOfTimeBetweenSends: state.amountOfTimeBetweenSends,
         waitingTimeAfterModification: state.waitingTimeAfterModification,
         amountOfWordsRemainAfterCleaned: state.amountOfWordsRemainAfterCleaned,
@@ -37,7 +39,11 @@ export default function ControlPanel() {
             setAmountOfTimeBetweenSends(value);
         }
     };
-    //
+
+    const toggleReceiveSubtitle = () => {
+
+    };
+
     const handleChangeWaitingTimeAfterModification = (event: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseFloat(event.target.value);
         if (!isNaN(value)) {
@@ -72,7 +78,12 @@ export default function ControlPanel() {
                             <WifiIcon className="size-5 text-red-500"/>
                         }
                         {t('connected')}
-                        <ArrowPathIcon className="size-5 text-blue-500 cursor-pointer" title={t('reconnect')}/>
+                        {
+                            isPlayingSubTitle ?
+                                <StopIcon onClick={() => setIsPlayingSubTitle(false)} className="size-5 text-red-500 cursor-pointer"/>
+                                :
+                                <PlayIcon onClick={() => setIsPlayingSubTitle(true)} className="size-5 text-green-500 cursor-pointer"/>
+                        }
                     </label>
                 </div>
                 <AudioPlayer/>

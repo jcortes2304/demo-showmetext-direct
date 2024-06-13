@@ -14,14 +14,15 @@ import {useTranslations} from "next-intl";
 export default function AudioPlayer() {
     const t = useTranslations('HomePage.AudioPlayer');
 
-    const [flushingTime, setFlushingTime] = useState<number>(0);
-    const [subscriptionAudio, setSubscriptionAudio] = useState<StompSubscription | null>(null);
-    const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
-    const [clientAudio, setClientAudio] = useState<Client | null>(null);
-
     const BASE_URL = "wss://sigas.showmetext.com/backend"
     const AUDIO_URL = `${BASE_URL}/gateway/ws`;
     const BASE_TOPIC = "/topic/providers/RTVE/channels/Teledeporte";
+
+
+    const [flushingTime, setFlushingTime] = useState<number>(8000);
+    const [subscriptionAudio, setSubscriptionAudio] = useState<StompSubscription | null>(null);
+    const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+    const [clientAudio, setClientAudio] = useState<Client | null>(null);
 
     let player: PCMPlayer;
 

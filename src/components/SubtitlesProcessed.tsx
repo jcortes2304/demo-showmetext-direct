@@ -5,21 +5,21 @@ import useAppStore from "@/store/store";
 import CountDown from "@/components/CountDown";
 import {
     ArrowDownCircleIcon,
-    ChevronLeftIcon,
-    ChevronRightIcon,
     PaperAirplaneIcon,
     PlayCircleIcon, StopCircleIcon
 } from "@heroicons/react/24/outline";
 import {useTranslations} from "next-intl";
+import {SpanType} from "@/schemas/UtilsSchemas";
 
 
 export default function SubtitlesProcessed() {
 
-    const { waitingTimeInScreenAfterSend, setWaitingTimeInScreenAfterSend } = useAppStore(
+    const { waitingTimeInScreenAfterSend, setActiveSpan, activeSpan } = useAppStore(
         (state) => state
     );
 
-    const textSubtitleRef = useRef<HTMLSpanElement>(null);
+    const processedTextSubtitleRef = useRef<HTMLSpanElement>(null);
+    const [processedCursorPosition, setProcessedCursorPosition] = useState<number>(0);
     const [subtitleMessage, setSubtitleMessage] = useState<SubtitleMessage | null>(null);
     const clientProcessedRef = useRef<Client | null>(null);
     const [subtitlesMessagesQueue, setSubtitlesMessagesQueue] = useState<SubtitleMessage[]>([]);
@@ -28,10 +28,10 @@ export default function SubtitlesProcessed() {
     const [showCountDown, setShowCountDown] = useState<boolean>(false);
     const [timeForCountDown, setTimeForCountDown] = useState<number>(waitingTimeInScreenAfterSend);
     const [automaticSendFlag, setAutomaticSendFlag] = useState<boolean>(true);
+    const [editedSubtitle, setEditedSubtitle] = useState<Subtitle | null>(null);
+
+
     const t = useTranslations('HomePage.SubtitlesProcessed');
-
-
-
 
 
     const handleEnterKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>) => {
@@ -42,11 +42,11 @@ export default function SubtitlesProcessed() {
 
     const handleTimeout = () => {
         if (automaticSendFlag && clientProcessedRef.current && subtitlesMessagesQueueRef.current.length > 0) {
-            const subtitle = subtitlesMessagesQueueRef.current[0];
+            const subtitle = editedSubtitle || subtitlesMessagesQueueRef.current[0].subtitles[0];
             console.log("Sending subtitles:", new Date().toLocaleTimeString(), subtitle);
             clientProcessedRef.current?.publish({
                 destination: "/app/sendSubtitlesResults",
-                body: JSON.stringify(subtitle.subtitles),
+                body: JSON.stringify([subtitle]),
             });
             setSubtitlesMessagesQueue((prevQueue) => {
                 const updatedQueue = [...prevQueue];
@@ -55,6 +55,7 @@ export default function SubtitlesProcessed() {
             });
             setCurrentIndex(0);
             setTimeForCountDown(waitingTimeInScreenAfterSend);
+            setEditedSubtitle(null);
         }
     };
 
@@ -76,11 +77,11 @@ export default function SubtitlesProcessed() {
 
     const handleSendUpToCurrent = () => {
         for (let i = 0; i <= currentIndex; i++) {
-            const subtitle = subtitlesMessagesQueue[i];
+            const subtitle = editedSubtitle || subtitlesMessagesQueue[i].subtitles[0];
             if (subtitle) {
                 clientProcessedRef.current?.publish({
                     destination: "/app/sendSubtitlesResults",
-                    body: JSON.stringify(subtitle.subtitles),
+                    body: JSON.stringify([subtitle]),
                 });
             }
         }
@@ -90,63 +91,76 @@ export default function SubtitlesProcessed() {
             return updatedQueue;
         });
         setCurrentIndex(0);
+        setEditedSubtitle(null);
     };
 
     const handleStopAutomaticSend = () => {
         setAutomaticSendFlag(!automaticSendFlag);
     }
 
+    const handleOnClick = () => {
+        setActiveSpan(SpanType.PROCESSED_SPAN)
+        saveProcessedCursorPosition();
+    };
+
     const handleSendAllSubtitles = () => {
-        subtitlesMessagesQueue.forEach((subtitle) => {
+        subtitlesMessagesQueue.forEach((subtitle, index) => {
+            const subtitleToSend = editedSubtitle && index === currentIndex ? editedSubtitle : subtitle.subtitles[0];
             clientProcessedRef.current?.publish({
                 destination: "/app/sendSubtitlesResults",
-                body: JSON.stringify(subtitle.subtitles),
+                body: JSON.stringify([subtitleToSend]),
             });
         });
         setSubtitlesMessagesQueue([]);
         setCurrentIndex(0);
+        setEditedSubtitle(null);
     };
 
-    const saveCursorPosition = useCallback(() => {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0 && textSubtitleRef.current) {
-            const range = selection.getRangeAt(0);
-            const preCaretRange = range.cloneRange();
-            preCaretRange.selectNodeContents(textSubtitleRef.current);
-            preCaretRange.setEnd(range.startContainer, range.startOffset);
-        }
-    }, []);
-
-    const restoreCursorPosition = useCallback(() => {
-        const selection = window.getSelection();
-        const range = document.createRange();
-        if (textSubtitleRef.current) {
-            range.setStart(textSubtitleRef.current, 0);
-            range.collapse(true);
-
-            const nodeIterator = document.createNodeIterator(
-                textSubtitleRef.current,
-                NodeFilter.SHOW_TEXT,
-                null
-            );
-            let node;
-            let pos = 0;
-            while ((node = nodeIterator.nextNode()) !== null) {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    const textNode = node as Text;
-                    const nextPos = pos + textNode.length;
-                    if (pos <= nextPos) {
-                        range.setStart(textNode, 0);
-                        range.collapse(true);
-                        break;
-                    }
-                    pos = nextPos;
-                }
+    const saveProcessedCursorPosition = useCallback(() => {
+        if (activeSpan === SpanType.PROCESSED_SPAN) {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0 && processedTextSubtitleRef.current) {
+                const range = selection.getRangeAt(0);
+                const preCaretRange = range.cloneRange();
+                preCaretRange.selectNodeContents(processedTextSubtitleRef.current);
+                preCaretRange.setEnd(range.startContainer, range.startOffset);
+                setProcessedCursorPosition(preCaretRange.toString().length);
             }
-            selection?.removeAllRanges();
-            selection?.addRange(range);
         }
     }, []);
+
+    const restoreProcessedCursorPosition = useCallback(() => {
+        if (activeSpan === SpanType.PROCESSED_SPAN) {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            if (processedTextSubtitleRef.current) {
+                range.setStart(processedTextSubtitleRef.current, 0);
+                range.collapse(true);
+
+                const nodeIterator = document.createNodeIterator(
+                    processedTextSubtitleRef.current,
+                    NodeFilter.SHOW_TEXT,
+                    null
+                );
+                let node;
+                let pos = 0;
+                while ((node = nodeIterator.nextNode()) !== null) {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        const textNode = node as Text;
+                        const nextPos = pos + textNode.length;
+                        if (pos <= nextPos) {
+                            range.setStart(textNode, 0);
+                            range.collapse(true);
+                            break;
+                        }
+                        pos = nextPos;
+                    }
+                }
+                selection?.removeAllRanges();
+                selection?.addRange(range);
+            }
+        }
+    }, [processedCursorPosition]);
 
     const handleLineAttributes = (lineAttributes: LineAttribute) => ({
         textAlign: lineAttributes.alignment,
@@ -166,8 +180,18 @@ export default function SubtitlesProcessed() {
         outlineWidth: textAttributes.outlineSize,
     });
 
-    const handleSubtitlesTextChange = () => {
-        saveCursorPosition();
+    const handleSubtitlesTextChange = (event: React.FormEvent<HTMLSpanElement>) => {
+        const editedText = event.currentTarget.textContent;
+        setEditedSubtitle({
+            ...subtitleMessage!.subtitles[0],
+            texts: [
+                {
+                    ...subtitleMessage!.subtitles[0].texts[0],
+                    characters: editedText!,
+                },
+            ],
+        });
+        saveProcessedCursorPosition();
     };
 
     useEffect(() => {
@@ -221,12 +245,12 @@ export default function SubtitlesProcessed() {
                         {subtitleMessage?.subtitles.map((subtitle, index) => (
                             <div key={index} style={handleLineAttributes(subtitle.lineAttributes!)}>
                         <span
-                            ref={textSubtitleRef}
+                            ref={processedTextSubtitleRef}
                             contentEditable
                             onInput={handleSubtitlesTextChange}
-                            onClick={saveCursorPosition}
-                            onBlur={saveCursorPosition}
-                            onFocus={restoreCursorPosition}
+                            onClick={handleOnClick}
+                            onBlur={saveProcessedCursorPosition}
+                            onFocus={restoreProcessedCursorPosition}
                             onKeyDown={handleEnterKeyDown}
                             suppressContentEditableWarning={true}
                             className="py-1 my-1 outline-none"

@@ -16,7 +16,7 @@ export default function SubtitlesResults() {
                 client.subscribe('/topic/receiveSubtitleResults', (message) => {
                     const newSubtitleMessage: SubtitleMessage = JSON.parse(message.body);
                     setSubtitleMessage(newSubtitleMessage);
-                    console.log("Received subtitlesas:", new Date().toLocaleTimeString(), JSON.stringify(newSubtitleMessage));
+                    // console.log("Received subtitlesas:", new Date().toLocaleTimeString(), JSON.stringify(newSubtitleMessage));
                 });
             },
             onDisconnect: () => {

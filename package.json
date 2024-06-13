@@ -11,12 +11,14 @@
   "dependencies": {
     "@heroicons/react": "^2.1.3",
     "@stomp/stompjs": "^7.0.0",
+    "draft-js": "^0.11.7",
     "next": "14.2.3",
     "next-intl": "^3.12.2",
     "node-fetch": "^3.3.2",
     "pcm-player": "^0.0.17",
     "react": "^18",
     "react-dom": "^18",
+    "react-draft-wysiwyg": "^1.15.0",
     "rxjs": "^7.8.1",
     "sockjs-client": "^1.6.1",
     "zustand": "^4.5.2"
@@ -25,6 +27,7 @@
     "@types/node": "^20",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18",
+    "@types/react-draft-wysiwyg": "^1.13.8",
     "@types/sockjs-client": "^1.5.4",
     "@types/stompjs": "^2.3.9",
     "daisyui": "^4.10.5",
