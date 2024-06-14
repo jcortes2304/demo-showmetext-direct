@@ -5,6 +5,7 @@ import {sendSubtitles} from "@/lib/requestSubtitle";
 import useAppStore from "@/store/store";
 import {SpanType} from "@/schemas/UtilsSchemas";
 import CountDown from "@/components/CountDown";
+import useWebSocket from "@/hooks/useWebSocket";
 
 
 function SubtitlesFixer() {
@@ -60,20 +61,10 @@ function SubtitlesFixer() {
     const cursorPositionRef = useRef(0);
     const clientLocalRef = useRef<Client | null>(null);
 
+
     const performAction = (key: string) => {
         // console.log('Acción ejecutada por combinación de teclas Ctrl + Alt + ' + key);
     };
-
-
-    useEffect(() => {
-        if (!isPlayingSubTitle){
-            clientSubtitlesDirect?.deactivate().then(() => {
-                setClientSubtitlesDirect(null);
-            })
-            console.log('Disconnected subtitle');
-        }
-
-    }, [isPlayingSubTitle]);
 
     const handleKeyPress = (event: KeyboardEvent) => {
         if (event.altKey && event.ctrlKey) {
@@ -89,13 +80,13 @@ function SubtitlesFixer() {
                 case "i":
                     setTimeout(() => {
                         setAutomaticSendFlag(true);
-                    },0)
+                    }, 0)
                     performAction(event.key);
                     break;
                 case "d":
                     setTimeout(() => {
                         setAutomaticSendFlag(false);
-                    },0)
+                    }, 0)
                     performAction(event.key);
                     break;
                 default:
@@ -103,11 +94,6 @@ function SubtitlesFixer() {
             }
         }
     };
-
-    const handleSendSubtitles = useCallback(async (data: SubtitleData) => {
-        const response: Promise<StandardResponse> = sendSubtitles(data);
-        return await response;
-    }, []);
 
     const clearSentSubtitles = () => {
         const words = subtitlesToSendRef.current.split(/\s+/).filter(word => word !== "");
@@ -144,6 +130,20 @@ function SubtitlesFixer() {
         setSubtitlesToSend(prev => prev + " " + wordsToSend);
         setShouldMark(true)
     }
+
+    const handleOnClick = () => {
+        setEnableMarking(false)
+        setActiveSpan(SpanType.FIXER_SPAN)
+        saveCursorPosition();
+        setTimeForCountDown(waitingTimeAfterModification)
+        // setShowCountDown(true)
+        setRestartCountDown(true);
+    };
+
+    const handleSendSubtitles = useCallback(async (data: SubtitleData) => {
+        const response: Promise<StandardResponse> = sendSubtitles(data);
+        return await response;
+    }, []);
 
     const getCursorPositionInWords = useCallback((words: string[]) => {
         let position = 0;
@@ -203,15 +203,16 @@ function SubtitlesFixer() {
         }
     }, []);
 
-    const handleOnClick = () => {
-        setEnableMarking(false)
-        setActiveSpan(SpanType.FIXER_SPAN)
-        saveCursorPosition();
-        setTimeForCountDown(waitingTimeAfterModification)
-        // setShowCountDown(true)
-        setRestartCountDown(true);
-    };
 
+    useEffect(() => {
+        if (!isPlayingSubTitle) {
+            clientSubtitlesDirect?.deactivate().then(() => {
+                setClientSubtitlesDirect(null);
+            })
+            console.log('Disconnected subtitle');
+        }
+
+    }, [isPlayingSubTitle]);
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyPress);
@@ -281,79 +282,79 @@ function SubtitlesFixer() {
     }, [subtitles]);
 
     useEffect(() => {
-        const client1 = new Client({
-            brokerURL: `${BASE_URL}/publisher/ws`,
-            reconnectDelay: 5000,
-            heartbeatIncoming: 4000,
-            heartbeatOutgoing: 4000,
-        });
-
-        client1.onConnect = () => {
-            const subscription = client1.subscribe(`${BASE_TOPIC}/subtitles/0`, (message) => {
-                const subtitleMessage: SubtitleMessage = JSON.parse(message.body);
-                if (subtitleMessage) {
-                    const subtitlesArray = subtitleMessage.subtitles;
-                    const newText = subtitlesArray.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
-                    setSubtitles(prev => prev + "\n" + newText);
-                }
-            });
-            return () => {
-                subscription.unsubscribe();
-                client1.deactivate().then();
-            };
-        };
-
-        client1.onDisconnect = () => {
-            console.error("Disconnected from WebSocket server");
-        };
-
-        client1.onStompError = (frame) => {
-            console.error("Broker reported error: " + frame.headers['message']);
-            console.error("Additional details: " + frame.body);
-        };
-
-        client1.activate();
-        setIsPlayingSubTitle(true);
-
-        return () => {
-            client1.deactivate().then();
-        };
-    }, []);
-
-    useEffect(() => {
-        if (isPlayingSubTitle){
-            const client = new Client({
-                brokerURL: "ws://localhost:9081/ws",
+        if (isPlayingSubTitle) {
+            const client1 = new Client({
+                brokerURL: `${BASE_URL}/publisher/ws`,
                 reconnectDelay: 5000,
                 heartbeatIncoming: 4000,
                 heartbeatOutgoing: 4000,
             });
 
-            client.onConnect = () => {
-                setIsConnected(true)
+            client1.onConnect = () => {
+                const subscription = client1.subscribe(`${BASE_TOPIC}/subtitles/0`, (message) => {
+                    const subtitleMessage: SubtitleMessage = JSON.parse(message.body);
+                    if (subtitleMessage) {
+                        const subtitlesArray = subtitleMessage.subtitles;
+                        const newText = subtitlesArray.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
+                        setSubtitles(prev => prev + "\n" + newText);
+                    }
+                });
+                return () => {
+                    subscription.unsubscribe();
+                    client1.deactivate().then();
+                };
             };
 
-            client.onDisconnect = () => {
-                setIsConnected(false)
+            client1.onDisconnect = () => {
                 console.error("Disconnected from WebSocket server");
             };
 
-            client.onStompError = (frame) => {
-                setIsConnected(false)
+            client1.onStompError = (frame) => {
                 console.error("Broker reported error: " + frame.headers['message']);
                 console.error("Additional details: " + frame.body);
             };
 
-            client.activate();
-            clientLocalRef.current = client;
-            setClientSubtitlesDirect(client);
+            client1.activate();
 
             return () => {
-                client.deactivate().then();
+                client1.deactivate().then();
             };
         }
-
     }, [isPlayingSubTitle]);
+
+    useEffect(() => {
+        const client = new Client({
+            brokerURL: "ws://localhost:9081/ws",
+            reconnectDelay: 5000,
+            heartbeatIncoming: 4000,
+            heartbeatOutgoing: 4000,
+        });
+
+        client.onConnect = () => {
+            setIsConnected(true)
+        };
+
+        client.onDisconnect = () => {
+            setIsConnected(false)
+            console.error("Disconnected from WebSocket server");
+        };
+
+        client.onStompError = (frame) => {
+            setIsConnected(false)
+            console.error("Broker reported error: " + frame.headers['message']);
+            console.error("Additional details: " + frame.body);
+        };
+
+        client.activate();
+        clientLocalRef.current = client;
+        setClientSubtitlesDirect(client);
+
+        return () => {
+            client.deactivate().then();
+        };
+
+
+    }, []);
 
     useEffect(() => {
         const sendSubtitles = () => {
@@ -373,6 +374,19 @@ function SubtitlesFixer() {
 
     }, [subtitlesToSend, isConnected]);
 
+    // useWebSocket({
+    //     url: `${BASE_URL}/publisher/ws`,
+    //     topic: `${BASE_TOPIC}/subtitles/0`,
+    //     callback: (subtitleMessage: SubtitleMessage) => {
+    //         if (subtitleMessage) {
+    //             const subtitlesArray = subtitleMessage.subtitles;
+    //             const newText = subtitlesArray.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
+    //             setSubtitles(prev => prev + "\n" + newText);
+    //         }
+    //         setIsPlayingSubTitle(true);
+    //     }
+    // });
+
     // useEffect(() => {
     //     const timer = setInterval(() => {
     //         setShowCountDown(false)
@@ -388,10 +402,10 @@ function SubtitlesFixer() {
             <div
                 className="border w-full border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
                 <div className="p-4 space-y-4 text-justify">
-      <span contentEditable={false}
-            className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
-        {subtitlesToSend}
-      </span>
+                <span   contentEditable={false}
+                    className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
+                    {subtitlesToSend}
+                    </span>
                     <span
                         id={"subtitleFixerSpan"}
                         ref={subtitleSpanRef}
@@ -403,8 +417,8 @@ function SubtitlesFixer() {
                         onFocus={restoreCursorPosition}
                         onKeyDown={handleEnterKeyDown}
                         className={`py-1 my-1 outline-none`}>
-        {subtitles}
-      </span>
+                        {subtitles}
+                    </span>
                 </div>
             </div>
             <div className="flex justify-end items-center mt-2">
@@ -420,21 +434,3 @@ function SubtitlesFixer() {
 
 
 export default SubtitlesFixer;
-
-
-// Revisar luego
-
-// useWebSocket({
-//     url: `${BASE_URL}/publisher/ws`,
-//     topic: `${BASE_TOPIC}/subtitles/0`,
-//     callback: (subtitleMessage: SubtitleMessage) => {
-//         if (!isEditing) {
-//             const subtitlesArray = subtitleMessage.subtitles;
-//             const newText = subtitlesArray
-//                 .map(line => line.texts.map(text => text.characters).join(' '))
-//                 .join('\n');
-//             setSubtitles(prev => prev + '\n' + newText);
-//         }
-//         setIsPlayingSubTitle(true);
-//     }
-// });
