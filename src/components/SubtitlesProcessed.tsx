@@ -43,7 +43,7 @@ export default function SubtitlesProcessed() {
     const handleTimeout = () => {
         if (automaticSendFlag && clientProcessedRef.current && subtitlesMessagesQueueRef.current.length > 0) {
             const subtitle = editedSubtitle || subtitlesMessagesQueueRef.current[0].subtitles[0];
-            console.log("Sending subtitles:", new Date().toLocaleTimeString(), subtitle);
+            // console.log("Sending subtitles:", new Date().toLocaleTimeString(), subtitle);
             clientProcessedRef.current?.publish({
                 destination: "/app/sendSubtitlesResults",
                 body: JSON.stringify([subtitle]),

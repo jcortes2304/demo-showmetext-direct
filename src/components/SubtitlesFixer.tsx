@@ -6,6 +6,7 @@ import useAppStore from "@/store/store";
 import {SpanType} from "@/schemas/UtilsSchemas";
 import CountDown from "@/components/CountDown";
 import useWebSocket from "@/hooks/useWebSocket";
+import WordContainer from "@/components/WordContainer";
 
 
 function SubtitlesFixer() {
@@ -42,6 +43,11 @@ function SubtitlesFixer() {
     const [subtitlesSentWithRestController, setSubtitlesSentWithRestController] = useState<boolean>(false);
     const [isConnected, setIsConnected] = useState<boolean>(false);
 
+    const [selectedWords, setSelectedWords] = useState<string[]>([]);
+    const [selectedIndexes, setSelectedIndexes] = useState<{start: number, end: number}>({  start: -1, end: -1 });
+    const [showContextMenu, setShowContextMenu] = useState(false);
+    const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+
     // String states
     const [subtitles, setSubtitles] = useState<string>("");
     const [subtitlesToSend, setSubtitlesToSend] = useState<string>("");
@@ -64,6 +70,71 @@ function SubtitlesFixer() {
 
     const performAction = (key: string) => {
         // console.log('Acción ejecutada por combinación de teclas Ctrl + Alt + ' + key);
+    };
+
+    const getWordByIndex = (index: number) => {
+        return subtitles.split(/\s+/)[index];
+    }
+
+    const checkIfWordIsSelected = (index: number, words: string []) => {
+        const result =  selectedWords.includes(getWordByIndex(index));
+        console.log(result)
+        return result;
+    }
+
+    const markAsSelected = (index: number, words: string []) => {
+        return selectedWords.includes(getWordByIndex(index));
+    }
+
+    const findWordsInSelectedRange = (selectedIndex: {start: number, end: number}) => {
+        let wordsToReturn: string[] = [];
+        const words = subtitles.split(/\s+/);
+        for (let i = selectedIndex.start; i <= selectedIndex.end; i++) {
+            wordsToReturn.push(words[i]);
+        }
+        setSelectedWords(wordsToReturn);
+        return wordsToReturn;
+    }
+
+    const handleWordClick = (word: string, index: number) => {
+        console.log(selectedIndexes)
+        if(selectedIndexes.start === -1) {
+            setSelectedIndexes({start: index, end: index});
+            setSelectedWords([getWordByIndex(index)]);
+            console.log("Start no estaba selected")
+            return;
+        }else if (selectedIndexes.start === index) {
+            setSelectedIndexes({start: -1, end: -1});
+            setSelectedWords([]);
+            console.log("Se reseleccino el mismo")
+            return;
+        } else {
+            console.log("Se selecciono un rango")
+            const lastSelectedIndex = subtitles.split(/\s+/).findIndex((w) => w === selectedWords[selectedWords.length - 1]);
+            const startIndex = Math.min(index, lastSelectedIndex);
+            const endIndex = Math.max(index, lastSelectedIndex);
+            setSelectedIndexes({start: startIndex, end: endIndex});
+            const selectedRange = subtitles.split(/\s+/).slice(startIndex, endIndex + 1);
+            const uniqueSelectedWords = [...selectedRange];
+            setSelectedWords(uniqueSelectedWords);
+            return;
+        }
+
+    };
+
+    const handleWordCtrlClick = (event: React.MouseEvent<HTMLSpanElement>, word: string) => {
+        event.preventDefault();
+        const updatedSelectedWords = selectedWords.includes(word)
+            ? selectedWords.filter((w) => w !== word)
+            : [...selectedWords, word];
+        setSelectedWords(updatedSelectedWords);
+        setShowContextMenu(true);
+        setContextMenuPosition({ x: event.clientX, y: event.clientY });
+    };
+
+    const handleContextMenuOptionClick = (option: string) => {
+        // Lógica para manejar la opción seleccionada del menú contextual
+        setShowContextMenu(false);
     };
 
     const handleKeyPress = (event: KeyboardEvent) => {
@@ -103,9 +174,12 @@ function SubtitlesFixer() {
     }
 
     const handleSubtitlesTextChange = (event: React.FormEvent<HTMLSpanElement>) => {
-        setIsEditing(true)
-        setSubtitles(event.currentTarget.textContent!);
-        saveCursorPosition();
+        const newSubtitles = event.currentTarget.textContent || '';
+        if (newSubtitles !== subtitles) {
+            setIsEditing(true);
+            setSubtitles(newSubtitles);
+            saveCursorPosition();
+        }
     };
 
     const handleEnterKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>) => {
@@ -374,6 +448,10 @@ function SubtitlesFixer() {
 
     }, [subtitlesToSend, isConnected]);
 
+    useEffect(() => {
+        console.log(selectedIndexes)
+    }, [selectedIndexes]);
+
     // useWebSocket({
     //     url: `${BASE_URL}/publisher/ws`,
     //     topic: `${BASE_TOPIC}/subtitles/0`,
@@ -396,14 +474,29 @@ function SubtitlesFixer() {
     //     return () => clearTimeout(timer)
     // }, [showCountDown, timeForCountDown, restartCountDown]);
 
+    const renderSubtitles = () => {
+        const words = subtitles.split(/\s+/);
+        return words.map((word, index) => (
+            <span
+                key={index}
+                onClick={() => handleWordClick(word, index)}
+                onContextMenu={(event) => handleWordCtrlClick(event, word)}
+                className={`${
+                    selectedWords.includes(word) && (index >= selectedIndexes.start && index <= selectedIndexes.end) ? 'bg-yellow-200' : ''
+                } cursor-pointer`}
+            >
+        {word}{' '}
+      </span>
+        ));
+    };
 
     return (
         <div>
             <div
                 className="border w-full border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
                 <div className="p-4 space-y-4 text-justify">
-                <span   contentEditable={false}
-                    className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
+                <span contentEditable={false}
+                      className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
                     {subtitlesToSend}
                     </span>
                     <span
@@ -417,10 +510,34 @@ function SubtitlesFixer() {
                         onFocus={restoreCursorPosition}
                         onKeyDown={handleEnterKeyDown}
                         className={`py-1 my-1 outline-none`}>
-                        {subtitles}
+                        {/*{subtitles}*/}
+                        {renderSubtitles()}
                     </span>
                 </div>
             </div>
+            {showContextMenu && (
+                <div
+                    className="absolute bg-white border border-gray-300 rounded shadow-lg"
+                    style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
+                >
+                    <ul className="py-2">
+                        <li
+                            onClick={() => handleContextMenuOptionClick('option1')}
+                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        >
+                            Option 1
+                        </li>
+                        <li
+                            onClick={() => handleContextMenuOptionClick('option2')}
+                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        >
+                            Option 2
+                        </li>
+                        {/* Agrega más opciones según sea necesario */}
+                    </ul>
+                </div>
+            )}
+
             <div className="flex justify-end items-center mt-2">
                 {/*<div className="mr-1">*/}
                 {/*    {showCountDown && (*/}
