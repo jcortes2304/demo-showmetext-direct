@@ -19,12 +19,23 @@ export interface StandardResponse {
     statusCode: string;
 }
 
+export interface WordFixedToSendToBackend{
+    word: string;
+    attributes?: {
+        highlight: boolean;
+        bold: boolean;
+        italic: boolean;
+        underline: boolean;
+    }
+}
+
 export interface Text {
     attributes: TextAttributes
     "characters": string
 }
 
 type alignment = "left" | "center" | "right";
+export type MenuOptions = "bold"| "italic"|"underline"| "highlight"
 
 export interface LineAttribute {
     alignment: alignment,
