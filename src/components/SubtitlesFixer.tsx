@@ -131,7 +131,10 @@ function SubtitlesFixer() {
                 clearTextSelection();
             }
             setLastEscapeTime(currentTime);
-        }
+        }else if (event.ctrlKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+                // Dar tiempo para que el cursor se mueva antes de actualizar la palabra enfocada
+                setTimeout(updateFocusedWord, 0);
+            }
     };
 
     const clearTextSelection = () => {
@@ -239,8 +242,6 @@ function SubtitlesFixer() {
                             pos = nextPos;
                         }
                     }
-                    // selection!.removeAllRanges();
-                    // selection!.addRange(range);
                 }
             }
 
@@ -279,6 +280,30 @@ function SubtitlesFixer() {
 
         }
     }, []);
+
+    const updateFocusedWord = useCallback(() => {
+        if (subtitleSpanRef.current) {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const preCaretRange = range.cloneRange();
+                preCaretRange.selectNodeContents(subtitleSpanRef.current);
+                preCaretRange.setEnd(range.endContainer, range.endOffset);
+                const caretOffset = preCaretRange.toString().length;
+
+                const words = subtitlesRef.current.split(/\s+/);
+                let charCount = 0;
+                for (let i = 0; i < words.length; i++) {
+                    charCount += words[i].length + 1; // +1 for space
+                    if (charCount > caretOffset) {
+                        setFocusedWordIndex(i);
+                        return i; // Retorna el índice calculado
+                    }
+                }
+            }
+        }
+        return -1; // Retorna -1 si no se encontró ninguna palabra
+    }, [subtitles]);
 
 
     useEffect(() => {
@@ -472,14 +497,18 @@ function SubtitlesFixer() {
         }
     }, [isUserSelecting]);
 
+    useEffect(() => {
+        updateFocusedWord();
+    }, [subtitles, updateFocusedWord]);
 
     return (
         <div>
             <div
                 className="border w-full border-gray-400 m-2 rounded-md overflow-y-auto max-h-[600px] min-h-[400px] relative">
+
                 <div className="p-4 space-y-4 text-justify">
-                <span contentEditable={false}
-                      className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
+                    <span contentEditable={false}
+                          className={`py-1 my-1${shouldMark && 'border border-gray-400 bg-blue-400'} text-white`}>
                     {subtitlesToSend}
                     </span>
                     <span
@@ -501,6 +530,7 @@ function SubtitlesFixer() {
                         onMouseUp={() => {
                             saveCursorPosition();
                             saveSelection();
+                            updateFocusedWord();
                         }}
                         onMouseDown={() => {
                             saveCursorPosition();
@@ -509,11 +539,19 @@ function SubtitlesFixer() {
                         onKeyUp={() => {
                             saveCursorPosition();
                             saveSelection();
+                            updateFocusedWord();
                         }}
                         onKeyDown={handleKeyDown}
                         className={`py-1 my-1 outline-none`}
                     >
-                        {subtitles}
+                 {subtitles.split(/\s+/).map((word, index) => (
+                     <span
+                         key={index}
+                         className={`${index === focusedWordIndex ? 'bg-yellow-100 rounded-md' : ''} transition-colors duration-200`}
+                     >
+    {word}{' '}
+  </span>
+                 ))}
                     </span>
                 </div>
             </div>
