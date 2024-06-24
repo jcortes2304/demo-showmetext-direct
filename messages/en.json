@@ -14,11 +14,22 @@
     "waitingTimeAfterModification": "Waiting time after modification",
     "remainingWordsAfterCleaned": "Remaining words after cleaned",
     "keyboardShortcuts": "Keyboard Shortcuts",
+    "speakerSelectorArea": "Speaker Selector Area",
+    "SubtitlesProcessed": {
+      "subtitlesProcessed": "Processed Subtitles",
+      "wordsSent": "Words Sent",
+      "wordsRemaining": "Words Remaining",
+      "wordsReceived": "Words Received",
+      "wordsProcessed": "Words Processed"
+    },
     "Shortcuts": {
       "sendText": "Send text up to cursor position",
       "clearText": "Clear sent text",
       "startAutoSend": "Start automatic sending",
       "stopAutoSend": "Stop automatic sending"
+    },
+    "SpeakerSelector": {
+      "select": "Select"
     },
     "AudioPlayer": {
       "audioBroadcast": "Audio Broadcast",

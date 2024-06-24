@@ -49,18 +49,15 @@ function SubtitlesFixer() {
     const [textSelected, setTextSelected] = useState<string>("");
     const [rangeTextSelected, setRangeTextSelected] = useState<{ start: number, end: number }>({start: 0, end: 0});
     const [lastEscapeTime, setLastEscapeTime] = useState<number>(0);
+    const [focusedWordIndex, setFocusedWordIndex] = useState<number>(-1);
 
-    // const [wordsSubtitles, setWordsSubtitles] = useState<WordFixedToSendToBackend []>([]);
 
-    const [showContextMenu, setShowContextMenu] = useState(false);
-    const [contextMenuPosition, setContextMenuPosition] = useState({x: 0, y: 0});
+
     const [isUserSelecting, setIsUserSelecting] = useState<boolean>(false);
 
     // String states
     const [subtitles, setSubtitles] = useState<string>("");
     const [subtitlesToSend, setSubtitlesToSend] = useState<string>("");
-
-    // Number states
 
     // WS Client states
     const [clientSubtitlesDirect, setClientSubtitlesDirect] = useState<Client | null>(null);
@@ -78,20 +75,6 @@ function SubtitlesFixer() {
         // console.log('Acción ejecutada por combinación de teclas Ctrl + Alt + ' + key);
     };
 
-    const handleContextMenuOptionClick = (option: MenuOptions) => {
-
-        switch (option) {
-            case "italic":
-                break;
-            case "bold":
-                break;
-            case "underline":
-                break;
-            default:
-                break;
-        }
-        setShowContextMenu(false);
-    };
 
     const handleKeyPress = (event: KeyboardEvent) => {
         if (event.altKey && event.ctrlKey) {
@@ -139,15 +122,9 @@ function SubtitlesFixer() {
     };
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>) => {
+        saveCursorPosition();
         if (event.key === 'Enter' || event.key === 'Tab') {
             event.preventDefault();
-        } else if (event.shiftKey && event.ctrlKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') ||
-            event.shiftKey && event.key === 'ArrowLeft' || event.shiftKey && event.key === 'ArrowRight') {
-            console.log("Shift + Arrow key pressed");
-            setIsEditing(true);
-            saveSelectedText(event as unknown as MouseEvent);
-        }else if(event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown'){
-            saveCursorPosition();
         } else if (event.key === 'Escape') {
             const currentTime = new Date().getTime();
             if (currentTime - lastEscapeTime < 300) { // 300ms para detectar doble escape
@@ -161,7 +138,6 @@ function SubtitlesFixer() {
         setRangeTextSelected({start: 0, end: 0});
         setTextSelected("");
         setIsTextSelected(false);
-        setShowContextMenu(false);
 
         // Limpiar la selección visual
         const selection = window.getSelection();
@@ -214,111 +190,95 @@ function SubtitlesFixer() {
 
     const saveCursorPosition = useCallback((amountOfCharactersToRest: number = 0) => {
         if (activeSpan === SpanType.FIXER_SPAN) {
-                    const selection = window.getSelection();
-                    if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
-                        const range = selection!.getRangeAt(0);
-                        const preCaretRange = range.cloneRange();
-                        preCaretRange.selectNodeContents(subtitleSpanRef.current!);
-                        preCaretRange.setEnd(range.startContainer, range.startOffset);
-                        if (preCaretRange.toString().length - amountOfCharactersToRest > 0) {
-                            cursorPositionRef.current = preCaretRange.toString().length - amountOfCharactersToRest;
-                        } else {
-                            cursorPositionRef.current = 0;
-                        }
-                    }
+            const selection = window.getSelection();
+            if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
+                const range = selection!.getRangeAt(0);
+                const preCaretRange = range.cloneRange();
+                preCaretRange.selectNodeContents(subtitleSpanRef.current!);
+                preCaretRange.setEnd(range.startContainer, range.startOffset);
+                if (preCaretRange.toString().length - amountOfCharactersToRest > 0) {
+                    cursorPositionRef.current = preCaretRange.toString().length - amountOfCharactersToRest;
+                } else {
+                    cursorPositionRef.current = 0;
                 }
+            }
+        }
     }, [activeSpan]);
 
-    const compareWordsToSendWithCursorPosition = useCallback((wordsToSendLength:number) => {
+    const compareWordsToSendWithCursorPosition = useCallback((wordsToSendLength: number) => {
         const result = cursorPositionRef.current - wordsToSendLength;
         return result >= 0
     }, []);
 
     const restoreCursorPosition = useCallback(() => {
-        if (activeSpan === SpanType.FIXER_SPAN) {
+        if (activeSpan === SpanType.FIXER_SPAN && subtitleSpanRef.current) {
             const selection = window.getSelection();
             const range = document.createRange();
-            if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
-                range.setStart(subtitleSpanRef.current!, 0);
-                range.collapse(true);
-                let pos = 0;
 
-                const nodeIterator = document.createNodeIterator(subtitleSpanRef.current!, NodeFilter.SHOW_TEXT, null);
-                let node: Node | null;
+            if (isTextSelected) {
+                range.setStart(subtitleSpanRef.current.firstChild!, rangeTextSelected.start);
+                range.setEnd(subtitleSpanRef.current.firstChild!, rangeTextSelected.end);
+            } else {
+                if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
+                    range.setStart(subtitleSpanRef.current!, 0);
+                    range.collapse(true);
+                    let pos = 0;
 
-                while ((node = nodeIterator.nextNode()) !== null) {
-                    if (node.nodeType === Node.TEXT_NODE) {
-                        const textNode = node as Text;
-                        const nextPos = pos + textNode.length;
-                        if (cursorPositionRef.current <= nextPos) {
-                            range.setStart(textNode, cursorPositionRef.current - pos);
-                            range.collapse(true);
-                            break;
+                    const nodeIterator = document.createNodeIterator(subtitleSpanRef.current!, NodeFilter.SHOW_TEXT, null);
+                    let node: Node | null;
+
+                    while ((node = nodeIterator.nextNode()) !== null) {
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            const textNode = node as Text;
+                            const nextPos = pos + textNode.length;
+                            if (cursorPositionRef.current <= nextPos) {
+                                range.setStart(textNode, cursorPositionRef.current - pos);
+                                range.collapse(true);
+                                break;
+                            }
+                            pos = nextPos;
                         }
-                        pos = nextPos;
                     }
+                    // selection!.removeAllRanges();
+                    // selection!.addRange(range);
                 }
-                selection!.removeAllRanges();
-                selection!.addRange(range);
             }
-        }
-    }, []);
 
-    const updateSelectedTextRange = useCallback((wordsToSendLength: number) => {
-        if (isTextSelected) {
-            const updatedStart = Math.max(rangeTextSelected.start - wordsToSendLength, 0);
-            const updatedEnd = Math.max(rangeTextSelected.end - wordsToSendLength, 0);
-            setRangeTextSelected({ start: updatedStart, end: updatedEnd });
+            selection?.removeAllRanges();
+            selection?.addRange(range);
         }
-    }, [isTextSelected, rangeTextSelected]);
+    }, [activeSpan, isTextSelected, rangeTextSelected]);
 
-    const saveSelectedText = useCallback((event: MouseEvent) => {
+    const saveSelection = useCallback((amountOfCharactersToRest: number = 0) => {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
-            const selectedText = range.toString();
-            const startOffset = range.startOffset;
-            const endOffset = range.endOffset;
-
-            if (startOffset === endOffset) {
-                setTextSelected("");
-                setRangeTextSelected({ start: 0, end: 0 });
-                setIsTextSelected(false);
-                setShowContextMenu(false);
-                setIsUserSelecting(false);
-            } else {
-                setTextSelected(selectedText);
-                setRangeTextSelected({ start: startOffset, end: endOffset });
+            if (amountOfCharactersToRest > 0) {
+                const updateStart = range.startOffset - amountOfCharactersToRest;
+                const updateEnd = range.endOffset - amountOfCharactersToRest;
+                if (updateStart >= 0 && updateEnd >= 0){
+                    setRangeTextSelected({
+                        start: updateStart,
+                        end: updateEnd
+                    });
+                    setTextSelected(range.toString());
+                    setIsTextSelected(true);
+                }else {
+                    selection.removeAllRanges();
+                    setTextSelected("");
+                    setIsTextSelected(false);
+                }
+            }else {
+                setRangeTextSelected({
+                    start: range.startOffset,
+                    end: range.endOffset
+                });
+                setTextSelected(range.toString());
                 setIsTextSelected(true);
-                setShowContextMenu(true);
-                setContextMenuPosition({ x: event.clientX, y: event.clientY });
-                setIsUserSelecting(true);
             }
-        } else {
-            setTextSelected("");
-            setRangeTextSelected({ start: 0, end: 0 });
-            setIsTextSelected(false);
-            setShowContextMenu(false);
-            setIsUserSelecting(false);
+
         }
     }, []);
-    const restoreSelectedText = useCallback(() => {
-        if (activeSpan === SpanType.FIXER_SPAN) {
-            const selection = window.getSelection();
-            const range = document.createRange();
-            if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
-                const textNode = subtitleSpanRef.current.firstChild as Text;
-                if (textNode) {
-                    const startOffset = Math.min(rangeTextSelected.start, textNode.length);
-                    const endOffset = Math.min(rangeTextSelected.end, textNode.length);
-                    range.setStart(textNode, startOffset);
-                    range.setEnd(textNode, endOffset);
-                    selection!.removeAllRanges();
-                    selection!.addRange(range);
-                }
-            }
-        }
-    }, [rangeTextSelected]);
 
 
     useEffect(() => {
@@ -337,7 +297,6 @@ function SubtitlesFixer() {
         return () => {
             window.removeEventListener('keydown', handleKeyPress);
         };
-        // eslint-disable-next-line
     }, []);
 
     useEffect(() => {
@@ -353,11 +312,11 @@ function SubtitlesFixer() {
             let words = subtitlesRef.current.trim().split(/\s+/);
             let wordsToSend = words.slice(0, amountOfWordsToSend).join(" ") + " ";
 
-            if (!subtitlesHaveWords){
+            if (!subtitlesHaveWords) {
                 return;
-            }else if (!enabledMarking && !compareWordsToSendWithCursorPosition(wordsToSend.length)) {
+            } else if (!enabledMarking && !compareWordsToSendWithCursorPosition(wordsToSend.length)) {
                 return;
-            }else if (isEditing && !compareWordsToSendWithCursorPosition(wordsToSend.length)) {
+            } else if (isEditing && !compareWordsToSendWithCursorPosition(wordsToSend.length)) {
                 return;
             }
 
@@ -367,8 +326,8 @@ function SubtitlesFixer() {
                     let wordsToSend = words.slice(0, amountOfWordsToSend).join(" ") + " ";
                     let remainingWords = words.slice(amountOfWordsToSend).join(" ");
                     saveCursorPosition(wordsToSend.length);
+                    saveSelection(wordsToSend.length);
                     setSubtitles(remainingWords);
-                    updateSelectedTextRange(wordsToSend.length);
                     setSubtitlesSentWithRestController(false);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
                     subtitlesToSentToBackendRef.current = wordsToSend
@@ -379,11 +338,9 @@ function SubtitlesFixer() {
                     clearTimeout(intervalId);
                 };
 
-            } else {
-                // console.log("Automatic send is disabled at asd: ", new Date().toLocaleTimeString())
             }
         }
-    }, [automaticSendFlag, isEditing, amountOfTimeBetweenSends, amountOfWordsToSend, subtitlesHaveWords, enabledMarking, updateSelectedTextRange, isUserSelecting]);
+    }, [automaticSendFlag, isEditing, amountOfTimeBetweenSends, amountOfWordsToSend, subtitlesHaveWords, enabledMarking, isUserSelecting]);
 
     useEffect(() => {
         subtitlesRef.current = subtitles
@@ -402,9 +359,6 @@ function SubtitlesFixer() {
     useEffect(() => {
         if (activeSpan === SpanType.FIXER_SPAN) {
             restoreCursorPosition();
-            if (!isEditing && isTextSelected) {
-                restoreSelectedText();
-            }
         }
     }, [subtitles]);
 
@@ -424,19 +378,6 @@ function SubtitlesFixer() {
                     if (subtitleMessage) {
                         const subtitlesArray = subtitleMessage.subtitles;
                         const newText = subtitlesArray.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
-                        const newWords = newText.split(/\s+/).filter(word => word.trim() !== '');
-                        // setWordsSubtitles(prevState => [
-                        //     ...prevState,
-                        //     ...newWords.map(word => ({
-                        //         word,
-                        //         attributes: {
-                        //             highlight: false,
-                        //             bold: false,
-                        //             italic: false,
-                        //             underline: false
-                        //         }
-                        //     }))
-                        // ]);
                         setSubtitles(prev => prev + "\n" + newText);
                     }
                 });
@@ -531,70 +472,6 @@ function SubtitlesFixer() {
         }
     }, [isUserSelecting]);
 
-    // useWebSocket({
-    //     url: `${BASE_URL}/publisher/ws`,
-    //     topic: `${BASE_TOPIC}/subtitles/0`,
-    //     callback: (subtitleMessage: SubtitleMessage) => {
-    //         if (subtitleMessage) {
-    //             const subtitlesArray = subtitleMessage.subtitles;
-    //             const newText = subtitlesArray.map(line => line.texts.map(text => text.characters).join(" ")).join("\n");
-    //             setSubtitles(prev => prev + "\n" + newText);
-    //         }
-    //         setIsPlayingSubTitle(true);
-    //     }
-    // });
-
-    // useEffect(() => {
-    //     const timer = setInterval(() => {
-    //         setShowCountDown(false)
-    //         setRestartCountDown(false);
-    //     }, (timeForCountDown + 1) * 1000)
-    //
-    //     return () => clearTimeout(timer)
-    // }, [showCountDown, timeForCountDown, restartCountDown]);
-
-    const Menu = () => {
-
-        return (
-            <ul className="menu menu-horizontal bg-base-200 rounded-box mt-6">
-                <li onClick={() => handleContextMenuOptionClick("bold")}>
-                    <a className="tooltip" data-tip="Bold">
-                        <strong>B</strong>
-                    </a>
-                </li>
-                <li onClick={() => handleContextMenuOptionClick("italic")}>
-                    <a className="tooltip" data-tip="Italic">
-                        <strong>I</strong>
-                    </a>
-                </li>
-                <li onClick={() => handleContextMenuOptionClick("underline")}>
-                    <a className="tooltip" data-tip="Underline">
-                        <strong>U</strong>
-                    </a>
-                </li>
-                <div className="divider divider-horizontal"></div>
-                <div className="flex justify-center gap-2 items-center mx-2">
-                    <label className="label">Resaltar:</label>
-                    <button>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5"
-                             stroke="currentColor" className="size-6">
-                            <path strokeLinecap="round" strokeLinejoin="round"
-                                  d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-                        </svg>
-                    </button>
-                    <button>
-                        <div className="badge badge-success badge-lg"></div>
-                    </button>
-                    <button>
-                        <div className="badge badge-accent badge-lg"></div>
-                    </button>
-                    <button>
-                        <div className="badge badge-info badge-lg"></div>
-                    </button>
-                </div>
-            </ul>
-        )
-    }
 
     return (
         <div>
@@ -613,30 +490,33 @@ function SubtitlesFixer() {
                         onInput={handleSubtitlesTextChange}
                         onClick={handleOnClick}
                         onFocus={restoreCursorPosition}
-                        onSelect={() => saveCursorPosition}
-                        onMouseUp={(event) => saveSelectedText(event.nativeEvent as unknown as MouseEvent)}
+                        onSelect={() => {
+                            saveCursorPosition();
+                            saveSelection();
+                        }}
+                        onSelectCapture={() => {
+                            saveCursorPosition();
+                            saveSelection();
+                        }}
+                        onMouseUp={() => {
+                            saveCursorPosition();
+                            saveSelection();
+                        }}
+                        onMouseDown={() => {
+                            saveCursorPosition();
+                            saveSelection();
+                        }}
+                        onKeyUp={() => {
+                            saveCursorPosition();
+                            saveSelection();
+                        }}
                         onKeyDown={handleKeyDown}
                         className={`py-1 my-1 outline-none`}
                     >
                         {subtitles}
-                        {/*{*/}
-                        {/*    wordsSubtitles.map((word, index) => (*/}
-                        {/*        <span key={index} className="cursor-pointer" onClick={() => console.log(word.word)}>*/}
-                        {/*            {word.word}{' '}*/}
-                        {/*        </span>*/}
-                        {/*    ))*/}
-                        {/*}*/}
                     </span>
                 </div>
             </div>
-            {showContextMenu && (
-                <div
-                    className="absolute mt-3"
-                    style={{left: contextMenuPosition.x, top: contextMenuPosition.y}}
-                >
-                    <Menu/>
-                </div>
-            )}
 
             <div className="flex justify-end items-center mt-2">
                 {/*<div className="mr-1">*/}

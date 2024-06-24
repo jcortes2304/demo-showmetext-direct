@@ -4,6 +4,7 @@ import Shortcuts from "@/components/Shortcuts";
 import React from "react";
 import useAppStore from "@/store/store";
 import {useTranslations} from "next-intl";
+import SpeakerSelector from "@/components/SpeakerSelector";
 
 
 export default function ControlPanel() {
@@ -135,6 +136,8 @@ export default function ControlPanel() {
                         </div>
                     </label>
                 </div>
+                {/*<label className="items-center card-title">{t('speakerSelectorArea')}</label>*/}
+                {/*<SpeakerSelector/>*/}
                 <label className="items-center card-title">{t('keyboardShortcuts')}</label>
                 <Shortcuts/>
             </div>
