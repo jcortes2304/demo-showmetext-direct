@@ -2,19 +2,7 @@
   "HomePage": {
     "title": "Corrector de Subtítulos",
     "description": "Una herramienta eficiente para corregir subtítulos.",
-    "serverConnection": "Conexión al Servidor",
-    "emissionSubtitles": "Emisión de Subtítulos",
-    "connected": "Conectado",
     "reconnect": "Reconectar",
-    "parameters": "Parámetros",
-    "amountWordsToSend": "Cantidad de Palabras a Enviar",
-    "enterAmount": "Introduzca Cantidad",
-    "timeBetweenSends": "Tiempo Entre Envíos",
-    "enterTime": "Introduzca Tiempo",
-    "waitingTimeAfterModification": "Tiempo de Espera Después de Modificación",
-    "remainingWordsAfterCleaned": "Palabras Restantes Después de Limpieza",
-    "keyboardShortcuts": "Atajos de Teclado",
-    "speakerSelectorArea": "Atajos de Teclado",
     "SubtitlesProcessed": {
       "subtitlesProcessed": "Subtítulos Procesados",
       "wordsSent": "Palabras Enviadas",
@@ -28,8 +16,28 @@
       "startAutoSend": "Iniciar envío automático",
       "stopAutoSend": "Detener envío automático"
     },
+    "ControlPanel": {
+      "serverConnection": "Conexión con el servidor",
+      "emissionSubtitles": "Emisión de subtítulos",
+      "connected": "Conectado",
+      "parameters": "Parámetros",
+      "amountWordsToSend": "Cantidad de palabras a enviar",
+      "enterAmount": "Ingrese cantidad",
+      "timeBetweenSends": "Tiempo entre envíos",
+      "enterTime": "Ingrese tiempo",
+      "waitingTimeAfterModification": "Tiempo de espera después de modificación",
+      "remainingWordsAfterCleaned": "Palabras restantes después de limpiar",
+      "keyboardShortcuts": "Atajos de Teclado",
+      "speakerSelectorArea": "Área de Selección de Hablante",
+      "Drawer": {
+        "showShortcuts": "Mostrar Atajos de Teclado"
+      }
+    },
     "SpeakerSelector": {
-      "select": "Seleccione"
+      "select": "Seleccione",
+      "addSpeaker": "Agregar Hablante",
+      "addSpeakerTitle": "Agregar Hablante",
+      "addSpeakerDescription": "Ingrese el nombre del hablante"
     },
     "AudioPlayer": {
       "audioBroadcast": "Emisión de audio",

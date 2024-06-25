@@ -1,3 +1,5 @@
+import {Speaker} from "@/schemas/UtilsSchemas";
+
 export interface TextAttributes {
     backgroundColor: string,
     bold: boolean,
@@ -12,6 +14,7 @@ export interface TextAttributes {
 
 export interface SubtitleData {
     subtitle: string;
+    speaker?: Speaker | null;
 }
 
 export interface StandardResponse {

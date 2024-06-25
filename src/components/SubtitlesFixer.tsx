@@ -9,7 +9,7 @@ import {
 } from "@/schemas/SubtitleMessageSchema";
 import {sendSubtitles} from "@/lib/requestSubtitle";
 import useAppStore from "@/store/store";
-import {SpanType} from "@/schemas/UtilsSchemas";
+import {SpanType, Speaker} from "@/schemas/UtilsSchemas";
 
 
 function SubtitlesFixer() {
@@ -24,6 +24,7 @@ function SubtitlesFixer() {
         amountOfWordsRemainAfterCleaned,
         isPlayingSubTitle,
         setIsPlayingSubTitle,
+        speakers,
         activeSpan,
         setActiveSpan
     } = useAppStore(state => ({
@@ -32,6 +33,7 @@ function SubtitlesFixer() {
         waitingTimeAfterModification: state.waitingTimeAfterModification,
         amountOfWordsRemainAfterCleaned: state.amountOfWordsRemainAfterCleaned,
         activeSpan: state.activeSpan,
+        speakers: state.speakers,
         isPlayingSubTitle: state.isPlayingSubTitle,
         setIsPlayingSubTitle: state.setIsPlayingSubTitle,
         setActiveSpan: state.setActiveSpan
@@ -51,6 +53,9 @@ function SubtitlesFixer() {
     const [lastEscapeTime, setLastEscapeTime] = useState<number>(0);
     const [focusedWordIndex, setFocusedWordIndex] = useState<number>(-1);
 
+    const [currentSpeaker, setCurrentSpeaker] = useState<Speaker | null>(null);
+    const [positionsSpeaker, setPositionsSpeaker] = useState<{ pos: number, speaker: number }[]>([]);
+    // const [lastSpeakerMarked, setLastSpeakerMarked] = useState<number>(0);
 
 
     const [isUserSelecting, setIsUserSelecting] = useState<boolean>(false);
@@ -72,38 +77,53 @@ function SubtitlesFixer() {
 
 
     const performAction = (key: string) => {
-        // console.log('Acción ejecutada por combinación de teclas Ctrl + Alt + ' + key);
+        console.log('Acción ejecutada por combinación de teclas ' + key);
     };
+
+    const handleSpeakerSelection = (optionNumber: number, event: KeyboardEvent) => {
+        const speaker = speakers[optionNumber - 1];
+        if (speaker) {
+            const position = getCursorPositionInCharacters() || 0;
+            setPositionsSpeaker(prev => [...prev, {pos: position, speaker: optionNumber}]);
+            setCurrentSpeaker(speaker);
+        }
+    }
 
 
     const handleKeyPress = (event: KeyboardEvent) => {
         if (event.altKey && event.ctrlKey) {
-            switch (event.key.toLowerCase()) {
-                case "s":
-                    performAction(event.key);
-                    sendSubtitlesUntilCursor();
-                    break;
-                case "l":
-                    clearSentSubtitles();
-                    performAction(event.key);
-                    break;
-                case "i":
-                    setTimeout(() => {
-                        setAutomaticSendFlag(true);
-                    }, 0)
-                    performAction(event.key);
-                    break;
-                case "d":
-                    setTimeout(() => {
-                        setAutomaticSendFlag(false);
-                    }, 0)
-                    performAction(event.key);
-                    break;
-                default:
-                    break;
+            const num = parseInt(event.key);
+            if (!isNaN(num) && num >= 1 && num <= 9) {
+                handleSpeakerSelection(num, event);
+            } else {
+                switch (event.key.toLowerCase()) {
+                    case "s":
+                        performAction(event.key);
+                        sendSubtitlesUntilCursor();
+                        break;
+                    case "l":
+                        clearSentSubtitles();
+                        performAction(event.key);
+                        break;
+                    case "i":
+                        setTimeout(() => {
+                            setAutomaticSendFlag(true);
+                        }, 0)
+                        performAction(event.key);
+                        break;
+                    case "d":
+                        setTimeout(() => {
+                            setAutomaticSendFlag(false);
+                        }, 0)
+                        performAction(event.key);
+                        break;
+                    default:
+                        break;
+                }
             }
         }
     };
+
 
     const clearSentSubtitles = () => {
         const words = subtitlesToSendRef.current.split(/\s+/).filter(word => word !== "");
@@ -131,10 +151,11 @@ function SubtitlesFixer() {
                 clearTextSelection();
             }
             setLastEscapeTime(currentTime);
-        }else if (event.ctrlKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
-                // Dar tiempo para que el cursor se mueva antes de actualizar la palabra enfocada
-                setTimeout(updateFocusedWord, 0);
-            }
+        }
+        // else if (event.ctrlKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+        //     // Dar tiempo para que el cursor se mueva antes de actualizar la palabra enfocada
+        //     setTimeout(updateFocusedWord, 0);
+        // }
     };
 
     const clearTextSelection = () => {
@@ -189,6 +210,19 @@ function SubtitlesFixer() {
             position++;
         }
         return position;
+    }, []);
+
+    const getCursorPositionInCharacters = useCallback(() => {
+        if (activeSpan === SpanType.FIXER_SPAN) {
+            const selection = window.getSelection();
+            if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
+                const range = selection!.getRangeAt(0);
+                const preCaretRange = range.cloneRange();
+                preCaretRange.selectNodeContents(subtitleSpanRef.current!);
+                preCaretRange.setEnd(range.startContainer, range.startOffset);
+                return preCaretRange.toString().length;
+            }
+        }
     }, []);
 
     const saveCursorPosition = useCallback((amountOfCharactersToRest: number = 0) => {
@@ -257,19 +291,19 @@ function SubtitlesFixer() {
             if (amountOfCharactersToRest > 0) {
                 const updateStart = range.startOffset - amountOfCharactersToRest;
                 const updateEnd = range.endOffset - amountOfCharactersToRest;
-                if (updateStart >= 0 && updateEnd >= 0){
+                if (updateStart >= 0 && updateEnd >= 0) {
                     setRangeTextSelected({
                         start: updateStart,
                         end: updateEnd
                     });
                     setTextSelected(range.toString());
                     setIsTextSelected(true);
-                }else {
+                } else {
                     selection.removeAllRanges();
                     setTextSelected("");
                     setIsTextSelected(false);
                 }
-            }else {
+            } else {
                 setRangeTextSelected({
                     start: range.startOffset,
                     end: range.endOffset
@@ -281,29 +315,29 @@ function SubtitlesFixer() {
         }
     }, []);
 
-    const updateFocusedWord = useCallback(() => {
-        if (subtitleSpanRef.current) {
-            const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0);
-                const preCaretRange = range.cloneRange();
-                preCaretRange.selectNodeContents(subtitleSpanRef.current);
-                preCaretRange.setEnd(range.endContainer, range.endOffset);
-                const caretOffset = preCaretRange.toString().length;
-
-                const words = subtitlesRef.current.split(/\s+/);
-                let charCount = 0;
-                for (let i = 0; i < words.length; i++) {
-                    charCount += words[i].length + 1; // +1 for space
-                    if (charCount > caretOffset) {
-                        setFocusedWordIndex(i);
-                        return i; // Retorna el índice calculado
-                    }
-                }
-            }
-        }
-        return -1; // Retorna -1 si no se encontró ninguna palabra
-    }, [subtitles]);
+    // const updateFocusedWord = useCallback(() => {
+    //     if (subtitleSpanRef.current) {
+    //         const selection = window.getSelection();
+    //         if (selection && selection.rangeCount > 0) {
+    //             const range = selection.getRangeAt(0);
+    //             const preCaretRange = range.cloneRange();
+    //             preCaretRange.selectNodeContents(subtitleSpanRef.current);
+    //             preCaretRange.setEnd(range.endContainer, range.endOffset);
+    //             const caretOffset = preCaretRange.toString().length;
+    //
+    //             const words = subtitlesRef.current.split(/\s+/);
+    //             let charCount = 0;
+    //             for (let i = 0; i < words.length; i++) {
+    //                 charCount += words[i].length + 1; // +1 for space
+    //                 if (charCount > caretOffset) {
+    //                     setFocusedWordIndex(i);
+    //                     return i; // Retorna el índice calculado
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     return -1; // Retorna -1 si no se encontró ninguna palabra
+    // }, [subtitles]);
 
 
     useEffect(() => {
@@ -353,6 +387,17 @@ function SubtitlesFixer() {
                     saveCursorPosition(wordsToSend.length);
                     saveSelection(wordsToSend.length);
                     setSubtitles(remainingWords);
+                    setPositionsSpeaker(prevState => {
+                        return prevState.filter(pos => {
+                            if (pos.pos < wordsToSend.length) {
+                                console.log("Eliminando posición de speaker")
+                            }
+                        }).map(pos => {
+                            return ({
+                                pos: pos.pos - wordsToSend.length,
+                                speaker: pos.speaker
+                        })
+                    })});
                     setSubtitlesSentWithRestController(false);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
                     subtitlesToSentToBackendRef.current = wordsToSend
@@ -385,6 +430,7 @@ function SubtitlesFixer() {
         if (activeSpan === SpanType.FIXER_SPAN) {
             restoreCursorPosition();
         }
+        console.log(positionsSpeaker)
     }, [subtitles]);
 
     useEffect(() => {
@@ -467,9 +513,13 @@ function SubtitlesFixer() {
         const sendSubtitles = () => {
             if (isConnected && clientLocalRef.current && subtitlesToSentToBackendRef.current && !subtitlesSentWithRestController) {
                 try {
+                    const subtitleData: SubtitleData = {
+                        subtitle: subtitlesToSentToBackendRef.current,
+                        speaker: currentSpeaker
+                    }
                     clientLocalRef.current.publish({
                         destination: '/app/sendSubtitles',
-                        body: subtitlesToSentToBackendRef.current,
+                        body: JSON.stringify(subtitleData),
                     });
                 } catch (error) {
                     console.error("Error sending subtitles:");
@@ -497,9 +547,25 @@ function SubtitlesFixer() {
         }
     }, [isUserSelecting]);
 
-    useEffect(() => {
-        updateFocusedWord();
-    }, [subtitles, updateFocusedWord]);
+    // useEffect(() => {
+    //     updateFocusedWord();
+    // }, [subtitles, updateFocusedWord]);
+
+    // const renderSubtitles = () => {
+    //     let result = [];
+    //     let lastIndex = 0;
+    //     for (let segment of speakerSegments) {
+    //         result.push(subtitles.slice(lastIndex, segment.start));
+    //         result.push(
+    //             <span key={segment.start} style={{backgroundColor: segment.speaker.color + '40'}}>
+    //       {subtitles.slice(segment.start, segment.end)}
+    //     </span>
+    //         );
+    //         lastIndex = segment.end;
+    //     }
+    //     result.push(subtitles.slice(lastIndex));
+    //     return result;
+    // }
 
     return (
         <div>
@@ -530,7 +596,7 @@ function SubtitlesFixer() {
                         onMouseUp={() => {
                             saveCursorPosition();
                             saveSelection();
-                            updateFocusedWord();
+                            // updateFocusedWord();
                         }}
                         onMouseDown={() => {
                             saveCursorPosition();
@@ -539,19 +605,21 @@ function SubtitlesFixer() {
                         onKeyUp={() => {
                             saveCursorPosition();
                             saveSelection();
-                            updateFocusedWord();
+                            // updateFocusedWord();
                         }}
                         onKeyDown={handleKeyDown}
                         className={`py-1 my-1 outline-none`}
                     >
-                 {subtitles.split(/\s+/).map((word, index) => (
-                     <span
-                         key={index}
-                         className={`${index === focusedWordIndex ? 'bg-yellow-100 rounded-md' : ''} transition-colors duration-200`}
-                     >
-    {word}{' '}
-  </span>
-                 ))}
+                                         {subtitles}
+
+                        {/*               {subtitles.split(/\s+/).map((word, index) => (*/}
+                        {/*                   <span*/}
+                        {/*                       key={index}*/}
+                        {/*                       className={`${index === focusedWordIndex ? 'bg-yellow-100 rounded-md' : ''} transition-colors duration-200`}*/}
+                        {/*                   >*/}
+                        {/*  {word}{' '}*/}
+                        {/*</span>*/}
+                        {/*               ))}*/}
                     </span>
                 </div>
             </div>

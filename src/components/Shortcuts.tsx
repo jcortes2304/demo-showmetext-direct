@@ -6,7 +6,7 @@ export default function Shortcuts() {
 
     return (
         <div>
-            <div className="w-full border rounded-md border-gray-400 p-2">
+            <div className="w-[360px] border rounded-md border-gray-400 p-2">
                 <div className="block px-1">
                     <kbd className="kbd">Ctrl</kbd>+<kbd className="kbd">Alt</kbd>+<kbd className="kbd">S</kbd>
                     <label className="label text-sm">{t('sendText')}</label>

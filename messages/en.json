@@ -2,18 +2,7 @@
   "HomePage": {
     "title": "Subtitles Corrector",
     "description": "An efficient tool for correcting subtitles.",
-    "serverConnection": "Server Connection",
-    "emissionSubtitles": "Emission of subtitles",
-    "connected": "Connected",
     "reconnect": "Reconnect",
-    "parameters": "Parameters",
-    "amountWordsToSend": "Amount of words to send",
-    "enterAmount": "Enter amount",
-    "timeBetweenSends": "Time between sends",
-    "enterTime": "Enter time",
-    "waitingTimeAfterModification": "Waiting time after modification",
-    "remainingWordsAfterCleaned": "Remaining words after cleaned",
-    "keyboardShortcuts": "Keyboard Shortcuts",
     "speakerSelectorArea": "Speaker Selector Area",
     "SubtitlesProcessed": {
       "subtitlesProcessed": "Processed Subtitles",
@@ -29,7 +18,27 @@
       "stopAutoSend": "Stop automatic sending"
     },
     "SpeakerSelector": {
-      "select": "Select"
+      "select": "Select",
+      "addSpeaker": "Add Speaker",
+      "addSpeakerTitle": "Add Speaker",
+      "addSpeakerDescription": "Add a new speaker"
+    },
+    "ControlPanel": {
+      "serverConnection": "Server Connection",
+      "emissionSubtitles": "Emission of subtitles",
+      "connected": "Connected",
+      "parameters": "Parameters",
+      "amountWordsToSend": "Amount of words to send",
+      "enterAmount": "Enter amount",
+      "timeBetweenSends": "Time between sends",
+      "enterTime": "Enter time",
+      "waitingTimeAfterModification": "Waiting time after modification",
+      "remainingWordsAfterCleaned": "Remaining words after cleaned",
+      "keyboardShortcuts": "Keyboard Shortcuts",
+      "speakerSelectorArea": "Speaker Selector Area",
+      "Drawer": {
+        "showShortcuts": "Show shortcuts"
+      }
     },
     "AudioPlayer": {
       "audioBroadcast": "Audio Broadcast",

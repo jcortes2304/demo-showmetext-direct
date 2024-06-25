@@ -5,10 +5,11 @@ import React from "react";
 import useAppStore from "@/store/store";
 import {useTranslations} from "next-intl";
 import SpeakerSelector from "@/components/SpeakerSelector";
+import Drawer from "@/components/Drawer";
 
 
 export default function ControlPanel() {
-    const t = useTranslations('HomePage');
+    const t = useTranslations('HomePage.ControlPanel');
 
     const {
         amountOfWordsToSend,
@@ -67,7 +68,7 @@ export default function ControlPanel() {
     };
 
     return (
-        <div className=" border rounded-md border-gray-400 m-2 overflow-y-auto">
+        <div className="w-full border rounded-md border-gray-400 m-2 overflow-y-auto">
             <div className="p-4 space-y-5">
                 <label className="flex items-center card-title">{t('serverConnection')}</label>
                 <div>
@@ -81,9 +82,11 @@ export default function ControlPanel() {
                         {t('connected')}
                         {
                             isPlayingSubTitle ?
-                                <StopIcon onClick={() => setIsPlayingSubTitle(false)} className="size-5 text-red-500 cursor-pointer"/>
+                                <StopIcon onClick={() => setIsPlayingSubTitle(false)}
+                                          className="size-5 text-red-500 cursor-pointer"/>
                                 :
-                                <PlayIcon onClick={() => setIsPlayingSubTitle(true)} className="size-5 text-green-500 cursor-pointer"/>
+                                <PlayIcon onClick={() => setIsPlayingSubTitle(true)}
+                                          className="size-5 text-green-500 cursor-pointer"/>
                         }
                     </label>
                 </div>
@@ -136,10 +139,10 @@ export default function ControlPanel() {
                         </div>
                     </label>
                 </div>
-                {/*<label className="items-center card-title">{t('speakerSelectorArea')}</label>*/}
-                {/*<SpeakerSelector/>*/}
-                <label className="items-center card-title">{t('keyboardShortcuts')}</label>
-                <Shortcuts/>
+                {/*<label className="items-center card-title">{t('keyboardShortcuts')}</label>*/}
+
+                <label className="items-center card-title">{t('speakerSelectorArea')}</label>
+                <SpeakerSelector/>
             </div>
         </div>
     )
