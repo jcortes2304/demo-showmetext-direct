@@ -98,10 +98,7 @@ export default function SubtitlesProcessed() {
         setAutomaticSendFlag(!automaticSendFlag);
     }
 
-    const handleOnClick = () => {
-        setActiveSpan(SpanType.PROCESSED_SPAN)
-        saveProcessedCursorPosition();
-    };
+
 
     const handleSendAllSubtitles = () => {
         subtitlesMessagesQueue.forEach((subtitle, index) => {
@@ -127,7 +124,7 @@ export default function SubtitlesProcessed() {
                 setProcessedCursorPosition(preCaretRange.toString().length);
             }
         }
-    }, []);
+    }, [activeSpan]);
 
     const restoreProcessedCursorPosition = useCallback(() => {
         if (activeSpan === SpanType.PROCESSED_SPAN) {
@@ -160,7 +157,12 @@ export default function SubtitlesProcessed() {
                 selection?.addRange(range);
             }
         }
-    }, [processedCursorPosition]);
+    }, [activeSpan]);
+
+    const handleOnClick = useCallback(() => {
+        setActiveSpan(SpanType.PROCESSED_SPAN);
+        saveProcessedCursorPosition();
+    }, [setActiveSpan, saveProcessedCursorPosition]);
 
     const handleLineAttributes = (lineAttributes: LineAttribute) => ({
         textAlign: lineAttributes.alignment,
@@ -198,6 +200,12 @@ export default function SubtitlesProcessed() {
         subtitlesMessagesQueueRef.current = subtitlesMessagesQueue;
         setSubtitleMessage(subtitlesMessagesQueueRef.current[currentIndex]);
     }, [subtitlesMessagesQueue, currentIndex]);
+
+
+    useEffect(() => {
+        console.log('Active span changed p:', activeSpan);
+        // Aquí puedes realizar acciones adicionales cuando cambia activeSpan
+    }, [activeSpan]);
 
     useEffect(() => {
         const client = new Client({
@@ -249,7 +257,6 @@ export default function SubtitlesProcessed() {
                             contentEditable
                             onInput={handleSubtitlesTextChange}
                             onClick={handleOnClick}
-                            onBlur={saveProcessedCursorPosition}
                             onFocus={restoreProcessedCursorPosition}
                             onKeyDown={handleEnterKeyDown}
                             suppressContentEditableWarning={true}

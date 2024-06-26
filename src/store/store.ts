@@ -28,12 +28,12 @@ const useAppStore = create<StoreState>((set) => ({
     amountOfTimeBetweenSends: 3,
     waitingTimeAfterModification: 3,
     amountOfWordsRemainAfterCleaned: 3,
-    waitingTimeInScreenAfterSend: 3,
+    waitingTimeInScreenAfterSend: 2,
     activeSpan: SpanType.FIXER_SPAN,
     speakers: [
         { id: 1, name: "Speaker 1", color: "#5bc0de" },
         { id: 2, name: "Speaker 2", color: "#5cb85c" },
-        { id: 3, name: "Speaker 3", color: "#6c757d" },
+        { id: 3, name: "Speaker 3", color: "#975ad1" },
         { id: 4, name: "Speaker 4", color: "#0275d8" },
         { id: 5, name: "Speaker 5", color: "#ed515c" },
         { id: 6, name: "Speaker 6", color: "#f0ad4e" }

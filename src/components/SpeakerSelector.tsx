@@ -59,7 +59,7 @@ const SpeakerSelector = () => {
                 return "badge-warning";
             case "#ed515c":
                 return "badge-error";
-            case "#6c757d":
+            case "#975ad1":
                 return "badge-secondary";
             default:
                 return "badge-dark";

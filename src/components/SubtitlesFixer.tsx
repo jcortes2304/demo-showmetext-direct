@@ -1,15 +1,9 @@
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {Client} from "@stomp/stompjs";
-import {
-    MenuOptions,
-    StandardResponse,
-    SubtitleData,
-    SubtitleMessage,
-    WordFixedToSendToBackend
-} from "@/schemas/SubtitleMessageSchema";
+import {StandardResponse, SubtitleData, SubtitleMessage} from "@/schemas/SubtitleMessageSchema";
 import {sendSubtitles} from "@/lib/requestSubtitle";
 import useAppStore from "@/store/store";
-import {SpanType, Speaker} from "@/schemas/UtilsSchemas";
+import {SpanType} from "@/schemas/UtilsSchemas";
 
 
 function SubtitlesFixer() {
@@ -23,7 +17,6 @@ function SubtitlesFixer() {
         waitingTimeAfterModification,
         amountOfWordsRemainAfterCleaned,
         isPlayingSubTitle,
-        setIsPlayingSubTitle,
         speakers,
         activeSpan,
         setActiveSpan
@@ -51,11 +44,8 @@ function SubtitlesFixer() {
     const [textSelected, setTextSelected] = useState<string>("");
     const [rangeTextSelected, setRangeTextSelected] = useState<{ start: number, end: number }>({start: 0, end: 0});
     const [lastEscapeTime, setLastEscapeTime] = useState<number>(0);
-    const [focusedWordIndex, setFocusedWordIndex] = useState<number>(-1);
 
-    const [currentSpeaker, setCurrentSpeaker] = useState<Speaker | null>(null);
-    const [positionsSpeaker, setPositionsSpeaker] = useState<{ pos: number, speaker: number }[]>([]);
-    // const [lastSpeakerMarked, setLastSpeakerMarked] = useState<number>(0);
+    const [positionsSpeaker, setPositionsSpeaker] = useState<{ pos: number, speaker: number }[]>([{pos: 0, speaker: 1}]);
 
 
     const [isUserSelecting, setIsUserSelecting] = useState<boolean>(false);
@@ -80,12 +70,11 @@ function SubtitlesFixer() {
         console.log('Acción ejecutada por combinación de teclas ' + key);
     };
 
-    const handleSpeakerSelection = (optionNumber: number, event: KeyboardEvent) => {
+    const handleSpeakerSelection = (optionNumber: number) => {
         const speaker = speakers[optionNumber - 1];
         if (speaker) {
             const position = getCursorPositionInCharacters() || 0;
-            setPositionsSpeaker(prev => [...prev, {pos: position, speaker: optionNumber}]);
-            setCurrentSpeaker(speaker);
+            addPositionSpeaker(position, speaker.id);
         }
     }
 
@@ -94,7 +83,7 @@ function SubtitlesFixer() {
         if (event.altKey && event.ctrlKey) {
             const num = parseInt(event.key);
             if (!isNaN(num) && num >= 1 && num <= 9) {
-                handleSpeakerSelection(num, event);
+                handleSpeakerSelection(num);
             } else {
                 switch (event.key.toLowerCase()) {
                     case "s":
@@ -134,11 +123,11 @@ function SubtitlesFixer() {
 
     const handleSubtitlesTextChange = (event: React.FormEvent<HTMLSpanElement>) => {
         const newSubtitles = event.currentTarget.textContent || '';
-        if (newSubtitles !== subtitles) {
+        // if (newSubtitles !== subtitles) {
             setIsEditing(true);
             setSubtitles(newSubtitles);
             saveCursorPosition();
-        }
+        // }
     };
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>) => {
@@ -174,32 +163,15 @@ function SubtitlesFixer() {
         }
     };
 
-    const sendSubtitlesUntilCursor = () => {
-        const words = subtitlesRef.current!.split(/\s+/).filter(word => word !== "");
-        const position = getCursorPositionInWords(words);
-        const wordsToSend = words.slice(0, position).join(" ") + " ";
-        const remainingWords = words.slice(position).join(" ");
-        saveCursorPosition(wordsToSend.length);
-        setSubtitles(remainingWords);
-        const subtitleToSend: SubtitleData = {
-            subtitle: wordsToSend
-        };
-        subtitlesToSentToBackendRef.current = wordsToSend
-        handleSendSubtitles(subtitleToSend).then();
-        setSubtitlesSentWithRestController(true);
-        setSubtitlesToSend(prev => prev + " " + wordsToSend);
-        setShouldMark(true)
-    }
 
-    const handleOnClick = () => {
-        setEnableMarking(false)
-        setActiveSpan(SpanType.FIXER_SPAN)
-        saveCursorPosition();
-    };
 
     const handleSendSubtitles = useCallback(async (data: SubtitleData) => {
-        const response: Promise<StandardResponse> = sendSubtitles(data);
-        return await response;
+        try {
+            const response: Promise<StandardResponse> = sendSubtitles(data);
+            return await response;
+        }catch (error) {
+            console.error("Error sending subtitles:");
+        }
     }, []);
 
     const getCursorPositionInWords = useCallback((words: string[]) => {
@@ -251,10 +223,12 @@ function SubtitlesFixer() {
         if (activeSpan === SpanType.FIXER_SPAN && subtitleSpanRef.current) {
             const selection = window.getSelection();
             const range = document.createRange();
+            const textNode = subtitleSpanRef.current.firstChild as Text;
+            if (!textNode) return;
 
-            if (isTextSelected) {
-                range.setStart(subtitleSpanRef.current.firstChild!, rangeTextSelected.start);
-                range.setEnd(subtitleSpanRef.current.firstChild!, rangeTextSelected.end);
+            if (isTextSelected && rangeTextSelected.end <= textNode.length) {
+                range.setStart(textNode, rangeTextSelected.start);
+                range.setEnd(textNode, rangeTextSelected.end);
             } else {
                 if (selection!.rangeCount > 0 && subtitleSpanRef.current) {
                     range.setStart(subtitleSpanRef.current!, 0);
@@ -285,60 +259,97 @@ function SubtitlesFixer() {
     }, [activeSpan, isTextSelected, rangeTextSelected]);
 
     const saveSelection = useCallback((amountOfCharactersToRest: number = 0) => {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            if (amountOfCharactersToRest > 0) {
-                const updateStart = range.startOffset - amountOfCharactersToRest;
-                const updateEnd = range.endOffset - amountOfCharactersToRest;
-                if (updateStart >= 0 && updateEnd >= 0) {
+        if (activeSpan === SpanType.FIXER_SPAN) {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                if (amountOfCharactersToRest > 0) {
+                    // const updateStart = range.startOffset - amountOfCharactersToRest;
+                    // const updateEnd = range.endOffset - amountOfCharactersToRest;
+                    const updateStart = Math.max(0, range.startOffset - amountOfCharactersToRest);
+                    const updateEnd = Math.max(updateStart, range.endOffset - amountOfCharactersToRest);
+                    if (updateStart >= 0 && updateEnd >= 0) {
+                        setRangeTextSelected({
+                            start: updateStart,
+                            end: updateEnd
+                        });
+                        setTextSelected(range.toString());
+                        setIsTextSelected(true);
+                    } else {
+                        selection.removeAllRanges();
+                        setTextSelected("");
+                        setIsTextSelected(false);
+                        setRangeTextSelected({ start: 0, end: 0 });
+                    }
+                } else {
                     setRangeTextSelected({
-                        start: updateStart,
-                        end: updateEnd
+                        start: range.startOffset,
+                        end: range.endOffset
                     });
                     setTextSelected(range.toString());
                     setIsTextSelected(true);
+                }
+            }
+        }
+    }, [activeSpan]);
+
+    const updatePositionsSpeaker = (wordsToSendLength: number) => {
+        setPositionsSpeaker(prevPositions => {
+            if (prevPositions.length > 1) {
+                 const secondPosition = prevPositions[1];
+                if (secondPosition.pos <= wordsToSendLength) {
+                    return prevPositions.slice(1)
                 } else {
-                    selection.removeAllRanges();
-                    setTextSelected("");
-                    setIsTextSelected(false);
+                    return prevPositions.map(pos => ({
+                        ...pos,
+                        pos: pos.pos - wordsToSendLength
+                    }));
                 }
             } else {
-                setRangeTextSelected({
-                    start: range.startOffset,
-                    end: range.endOffset
-                });
-                setTextSelected(range.toString());
-                setIsTextSelected(true);
+                return prevPositions;
             }
+        });
+    };
 
+    const addPositionSpeaker = (position: number, speaker: number) => {
+        if (positionsSpeaker[positionsSpeaker.length - 1].pos !== position) {
+            setPositionsSpeaker(prev => [...prev, {pos: position, speaker: speaker}]);
         }
-    }, []);
+    }
 
-    // const updateFocusedWord = useCallback(() => {
-    //     if (subtitleSpanRef.current) {
-    //         const selection = window.getSelection();
-    //         if (selection && selection.rangeCount > 0) {
-    //             const range = selection.getRangeAt(0);
-    //             const preCaretRange = range.cloneRange();
-    //             preCaretRange.selectNodeContents(subtitleSpanRef.current);
-    //             preCaretRange.setEnd(range.endContainer, range.endOffset);
-    //             const caretOffset = preCaretRange.toString().length;
-    //
-    //             const words = subtitlesRef.current.split(/\s+/);
-    //             let charCount = 0;
-    //             for (let i = 0; i < words.length; i++) {
-    //                 charCount += words[i].length + 1; // +1 for space
-    //                 if (charCount > caretOffset) {
-    //                     setFocusedWordIndex(i);
-    //                     return i; // Retorna el índice calculado
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     return -1; // Retorna -1 si no se encontró ninguna palabra
-    // }, [subtitles]);
+    const getSpeakerById = (id: number) => {
+        return speakers.find(speaker => speaker.id === id);
+    }
 
+    const handleOnClick = useCallback(() => {
+        setEnableMarking(false);
+        setActiveSpan(SpanType.FIXER_SPAN);
+        saveCursorPosition();
+    }, [setActiveSpan, saveCursorPosition]);
+
+    const sendSubtitlesUntilCursor =  useCallback(() => {
+        const words = subtitlesRef.current!.split(/\s+/).filter(word => word !== "");
+        const position = getCursorPositionInWords(words);
+        const wordsToSend = words.slice(0, position).join(" ") + " ";
+        const remainingWords = words.slice(position).join(" ");
+        // Todo enviar las palabras hasta el cursor correctamente con el speaer correspondiente
+        saveCursorPosition(wordsToSend.length);
+        saveSelection(wordsToSend.length);
+        updatePositionsSpeaker(wordsToSend.length)
+
+        setSubtitles(remainingWords);
+        subtitlesToSentToBackendRef.current = wordsToSend
+        const speaker = getSpeakerById(positionsSpeaker[0].speaker)
+
+        const subtitleToSend: SubtitleData = {
+            subtitle: wordsToSend,
+            speaker: speaker
+        }
+        handleSendSubtitles(subtitleToSend).then();
+        setSubtitlesSentWithRestController(true);
+        setSubtitlesToSend(prev => prev + " " + wordsToSend);
+        setShouldMark(true)
+    }, [getCursorPositionInWords, getSpeakerById, positionsSpeaker, updatePositionsSpeaker, saveCursorPosition, handleSendSubtitles]);
 
     useEffect(() => {
         if (!isPlayingSubTitle) {
@@ -366,6 +377,10 @@ function SubtitlesFixer() {
         }
     }, [subtitles]);
 
+    // useEffect(() => {
+    //     console.log('Active span changed:', activeSpan);
+    // }, [activeSpan]);
+
     useEffect(() => {
         if (subtitlesRef.current && !isUserSelecting) {
             let words = subtitlesRef.current.trim().split(/\s+/);
@@ -384,20 +399,12 @@ function SubtitlesFixer() {
                     let words = subtitlesRef.current.trim().split(/\s+/);
                     let wordsToSend = words.slice(0, amountOfWordsToSend).join(" ") + " ";
                     let remainingWords = words.slice(amountOfWordsToSend).join(" ");
-                    saveCursorPosition(wordsToSend.length);
-                    saveSelection(wordsToSend.length);
+                    if (activeSpan === SpanType.FIXER_SPAN) {
+                        saveCursorPosition(wordsToSend.length);
+                        saveSelection(wordsToSend.length);
+                    }
+                    updatePositionsSpeaker(wordsToSend.length);
                     setSubtitles(remainingWords);
-                    setPositionsSpeaker(prevState => {
-                        return prevState.filter(pos => {
-                            if (pos.pos < wordsToSend.length) {
-                                console.log("Eliminando posición de speaker")
-                            }
-                        }).map(pos => {
-                            return ({
-                                pos: pos.pos - wordsToSend.length,
-                                speaker: pos.speaker
-                        })
-                    })});
                     setSubtitlesSentWithRestController(false);
                     setSubtitlesToSend(prev => prev + " " + wordsToSend);
                     subtitlesToSentToBackendRef.current = wordsToSend
@@ -410,7 +417,7 @@ function SubtitlesFixer() {
 
             }
         }
-    }, [automaticSendFlag, isEditing, amountOfTimeBetweenSends, amountOfWordsToSend, subtitlesHaveWords, enabledMarking, isUserSelecting]);
+    }, [activeSpan, automaticSendFlag, isEditing, amountOfTimeBetweenSends, amountOfWordsToSend, subtitlesHaveWords, enabledMarking, isUserSelecting]);
 
     useEffect(() => {
         subtitlesRef.current = subtitles
@@ -430,7 +437,6 @@ function SubtitlesFixer() {
         if (activeSpan === SpanType.FIXER_SPAN) {
             restoreCursorPosition();
         }
-        console.log(positionsSpeaker)
     }, [subtitles]);
 
     useEffect(() => {
@@ -515,7 +521,7 @@ function SubtitlesFixer() {
                 try {
                     const subtitleData: SubtitleData = {
                         subtitle: subtitlesToSentToBackendRef.current,
-                        speaker: currentSpeaker
+                        speaker: getSpeakerById(positionsSpeaker[0].speaker)
                     }
                     clientLocalRef.current.publish({
                         destination: '/app/sendSubtitles',
@@ -547,26 +553,6 @@ function SubtitlesFixer() {
         }
     }, [isUserSelecting]);
 
-    // useEffect(() => {
-    //     updateFocusedWord();
-    // }, [subtitles, updateFocusedWord]);
-
-    // const renderSubtitles = () => {
-    //     let result = [];
-    //     let lastIndex = 0;
-    //     for (let segment of speakerSegments) {
-    //         result.push(subtitles.slice(lastIndex, segment.start));
-    //         result.push(
-    //             <span key={segment.start} style={{backgroundColor: segment.speaker.color + '40'}}>
-    //       {subtitles.slice(segment.start, segment.end)}
-    //     </span>
-    //         );
-    //         lastIndex = segment.end;
-    //     }
-    //     result.push(subtitles.slice(lastIndex));
-    //     return result;
-    // }
-
     return (
         <div>
             <div
@@ -596,7 +582,6 @@ function SubtitlesFixer() {
                         onMouseUp={() => {
                             saveCursorPosition();
                             saveSelection();
-                            // updateFocusedWord();
                         }}
                         onMouseDown={() => {
                             saveCursorPosition();
@@ -605,21 +590,11 @@ function SubtitlesFixer() {
                         onKeyUp={() => {
                             saveCursorPosition();
                             saveSelection();
-                            // updateFocusedWord();
                         }}
                         onKeyDown={handleKeyDown}
                         className={`py-1 my-1 outline-none`}
                     >
-                                         {subtitles}
-
-                        {/*               {subtitles.split(/\s+/).map((word, index) => (*/}
-                        {/*                   <span*/}
-                        {/*                       key={index}*/}
-                        {/*                       className={`${index === focusedWordIndex ? 'bg-yellow-100 rounded-md' : ''} transition-colors duration-200`}*/}
-                        {/*                   >*/}
-                        {/*  {word}{' '}*/}
-                        {/*</span>*/}
-                        {/*               ))}*/}
+                        {subtitles}
                     </span>
                 </div>
             </div>
